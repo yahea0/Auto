@@ -24,10 +24,10 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/tvVersion"
+            android:id="@+id/tvDetails"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1.0.0"
+            android:text="Portrait | Game"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
             android:layout_marginTop="4dp" />
