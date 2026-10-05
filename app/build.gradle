@@ -1,17 +1,15 @@
-plugins {
-    id 'com.android.application'
-}
-android {
-    namespace 'com.example.myautomationapp'
-    compileSdk 34
-    defaultConfig {
-        applicationId "com.example.myautomationapp"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
     }
 }
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
