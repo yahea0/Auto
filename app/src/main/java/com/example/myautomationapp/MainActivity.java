@@ -2,37 +2,34 @@ package com.example.myautomationapp;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.graphics.Color;
-import android.view.Gravity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER);
-        layout.setBackgroundColor(Color.parseColor("#121212"));
-        layout.setPadding(50, 50, 50, 50);
+        setContentView(R.layout.activity_main);
 
-        TextView title = new TextView(this);
-        title.setText("Auto Automation");
-        title.setTextColor(Color.parseColor("#FFD700"));
-        title.setTextSize(28);
-        title.setGravity(Gravity.CENTER);
-        
-        Button editModeBtn = new Button(this);
-        editModeBtn.setText("EDIT MODE");
-        editModeBtn.setBackgroundColor(Color.parseColor("#FFD700"));
-        editModeBtn.setTextColor(Color.parseColor("#121212"));
-        
-        layout.addView(title);
-        layout.addView(editModeBtn);
-        
-        setContentView(layout);
+        RecyclerView recyclerView = findViewById(R.id.recyclerView);
+        FloatingActionButton fabAdd = findViewById(R.id.fabAdd);
+
+        // قائمة تجريبية للمعاينة
+        List<String> macroList = new ArrayList<>();
+        macroList.add("تجريبي قتل");
+        macroList.add("بس لقطة فتح الحقيبة");
+        macroList.add("حدث النداء قلعة الهيبة");
+        macroList.add("للنداء، هيبة");
+
+        MacroAdapter adapter = new MacroAdapter(macroList);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(adapter);
+
+        fabAdd.setOnClickListener(v -> {
+            // هنا رح نضيف كود التقاط الشاشة لاحقاً
+        });
     }
 }
