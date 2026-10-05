@@ -1,15 +1,17 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.7.3'
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.example.myautomationapp'
+    compileSdk 35
+    defaultConfig {
+        applicationId "com.example.myautomationapp"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
     }
 }
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
 }
