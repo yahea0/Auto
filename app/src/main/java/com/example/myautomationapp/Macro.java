@@ -15,3 +15,4 @@ public class Macro {
     public String getOrientation() { return orientation; }
     public String getIconName() { return iconName; }
 }
+ 
