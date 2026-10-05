@@ -11,10 +11,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 
 public class MacroAdapter extends RecyclerView.Adapter<MacroAdapter.ViewHolder> {
-    private List<String> macroNames;
+    private List<Macro> macroList;
 
-    public MacroAdapter(List<String> macroNames) {
-        this.macroNames = macroNames;
+    public MacroAdapter(List<Macro> macroList) {
+        this.macroList = macroList;
     }
 
     @NonNull
@@ -26,32 +26,32 @@ public class MacroAdapter extends RecyclerView.Adapter<MacroAdapter.ViewHolder> 
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        String name = macroNames.get(position);
-        holder.tvName.setText(name);
-        holder.tvVersion.setText("1.0.0");
+        Macro macro = macroList.get(position);
+        holder.tvName.setText(macro.getName());
+        holder.tvDetails.setText(macro.getOrientation() + " | " + macro.getIconName());
 
         holder.btnEdit.setOnClickListener(v -> {
-            Toast.makeText(v.getContext(), "وضع التحرير: " + name, Toast.LENGTH_SHORT).show();
+            Toast.makeText(v.getContext(), "وضع التحرير: " + macro.getName(), Toast.LENGTH_SHORT).show();
         });
 
         holder.btnPlay.setOnClickListener(v -> {
-            Toast.makeText(v.getContext(), "تشغيل: " + name, Toast.LENGTH_SHORT).show();
+            Toast.makeText(v.getContext(), "تشغيل: " + macro.getName(), Toast.LENGTH_SHORT).show();
         });
     }
 
     @Override
     public int getItemCount() {
-        return macroNames.size();
+        return macroList.size();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvVersion;
+        TextView tvName, tvDetails;
         Button btnEdit, btnPlay;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             tvName = itemView.findViewById(R.id.tvName);
-            tvVersion = itemView.findViewById(R.id.tvVersion);
+            tvDetails = itemView.findViewById(R.id.tvDetails);
             btnEdit = itemView.findViewById(R.id.btnEdit);
             btnPlay = itemView.findViewById(R.id.btnPlay);
         }
