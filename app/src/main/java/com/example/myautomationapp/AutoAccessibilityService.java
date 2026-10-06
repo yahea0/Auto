@@ -33,38 +33,50 @@ public class AutoAccessibilityService extends AccessibilityService {
         return instance != null;
     }
 
-    /**
-     * تنفيذ نقرة حقيقية على الشاشة مع تثبيت النقطة (lineTo) لضمان تفاعل النظام
-     */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
         Path path = new Path();
         path.moveTo(x, y);
-        path.lineTo(x, y); // جوهري جداً: لتسجيل لمسة فعلية Down ثم Up
-
+        path.lineTo(x, y);
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 100));
         dispatchGesture(builder.build(), null, null);
     }
 
-    /**
-     * تنفيذ سحب حقيقي على الشاشة (Swipe)
-     */
     public void swipe(int startX, int startY, int endX, int endY, int durationMs) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
         Path path = new Path();
         path.moveTo(startX, startY);
         path.lineTo(endX, endY);
-
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, durationMs));
         dispatchGesture(builder.build(), null, null);
     }
 
-    /**
-     * تنفيذ زر الرجوع التلقائي
-     */
+    // دوال نظام أندرويد الفعلية
     public void pressBack() {
         performGlobalAction(GLOBAL_ACTION_BACK);
+    }
+
+    public void pressHome() {
+        performGlobalAction(GLOBAL_ACTION_HOME);
+    }
+
+    public void openRecents() {
+        performGlobalAction(GLOBAL_ACTION_RECENTS);
+    }
+
+    public void openNotifications() {
+        performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS);
+    }
+
+    public void openQuickSettings() {
+        performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS);
+    }
+
+    public void takeScreenshot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT);
+        }
     }
 }
