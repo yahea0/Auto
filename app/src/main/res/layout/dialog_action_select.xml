@@ -188,6 +188,36 @@
             android:layout_height="wrap_content"
             android:columnCount="2">
 
+            <!-- Open App (مطابق لمايكروفي بالصاروخ) -->
+            <LinearLayout
+                android:id="@+id/btnOpenApp"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_send"
+                    app:tint="#FFFFFF" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Open App"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="13sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
             <!-- Press Back -->
             <LinearLayout
                 android:id="@+id/btnPressBack"
