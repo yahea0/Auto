@@ -34,15 +34,16 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * تنفيذ نقرة حقيقية على الشاشة
+     * تنفيذ نقرة حقيقية على الشاشة مع تثبيت النقطة (lineTo) لضمان تفاعل النظام
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
         Path path = new Path();
         path.moveTo(x, y);
+        path.lineTo(x, y); // جوهري جداً: لتسجيل لمسة فعلية Down ثم Up
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 100));
         dispatchGesture(builder.build(), null, null);
     }
 
