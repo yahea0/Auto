@@ -20,7 +20,6 @@ import android.view.WindowManager;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-import androidx.core.app.ServiceCompat;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
@@ -45,10 +44,11 @@ public class FloatingWindowService extends Service {
         super.onCreate();
         createNotificationChannel();
         try {
+            // استخدام دالة startForeground الأصلية في أندرويد بدون أخطاء توافق
             if (Build.VERSION.SDK_INT >= 34) {
-                ServiceCompat.startForeground(this, 1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             } else {
-                ServiceCompat.startForeground(this, 1, buildNotification(), 0);
+                startForeground(1, buildNotification());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -57,7 +57,7 @@ public class FloatingWindowService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        new Handler(Looper.getMainLooper()).postDelayed(this::initViews, 1000);
+        new Handler(Looper.getMainLooper()).postDelayed(this::initViews, 500);
     }
 
     private void initViews() {
@@ -80,13 +80,13 @@ public class FloatingWindowService extends Service {
         menuParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
-        menuParams.gravity = Gravity.CENTER; // في منتصف الشاشة
+        menuParams.gravity = Gravity.CENTER;
 
         try {
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "خطأ في إضافة النافذة", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "خطأ في إضافة النافذة العائمة", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
@@ -158,31 +158,29 @@ public class FloatingWindowService extends Service {
 
     private void setupMenuLogic() {
         menuView.findViewById(R.id.menuManage).setOnClickListener(v -> {
-            // 1. إغلاق القائمة العائمة
             if (menuView.getWindowToken() != null) {
                 windowManager.removeView(menuView);
                 isMenuOpen = false;
             }
-            // 2. فتح شاشة الأكشنات
             Intent intent = new Intent(this, ActionActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         });
-        
+
         menuView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
-            Toast.makeText(this, "Run Test (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Run Test (المرحلة القادمة)", Toast.LENGTH_SHORT).show();
         });
-        
+
         menuView.findViewById(R.id.menuSave).setOnClickListener(v -> {
-            Toast.makeText(this, "Save (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Save (المرحلة القادمة)", Toast.LENGTH_SHORT).show();
         });
-        
+
         menuView.findViewById(R.id.menuMore).setOnClickListener(v -> {
             Toast.makeText(this, "More (قريباً)", Toast.LENGTH_SHORT).show();
         });
-        
+
         menuView.findViewById(R.id.menuExit).setOnClickListener(v -> {
-            Toast.makeText(this, "Exiting...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "إغلاق النافذة...", Toast.LENGTH_SHORT).show();
             stopSelf();
         });
     }
@@ -200,7 +198,7 @@ public class FloatingWindowService extends Service {
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Auto Automation")
-                .setContentText("النافذة العائمة تعمل")
+                .setContentText("النافذة العائمة تعمل بنجاح")
                 .setSmallIcon(android.R.drawable.ic_menu_edit)
                 .build();
     }
