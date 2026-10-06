@@ -49,14 +49,11 @@ public class MainActivity extends Activity {
     }
 
     public void checkOverlayPermission(Macro macro) {
-        if (!Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
-            pendingMacro = macro;
-        } else {
-            showSetupDialog(macro);
-        }
+        // في أجهزة ريلمي، أحياناً Settings.canDrawOverlays بتعطي false غلط، عشان هيك خلينا نروح عالإعدادات دايماً
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
+        pendingMacro = macro;
     }
 
     @Override
@@ -64,10 +61,9 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         
         if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
-            if (Settings.canDrawOverlays(this) && pendingMacro != null) {
+            // حتى لو Settings.canDrawOverlays رجعت false، رح نكمل عشان نختبر
+            if (pendingMacro != null) {
                 showSetupDialog(pendingMacro);
-            } else {
-                Toast.makeText(this, "صلاحية الظهور فوق التطبيقات مطلوبة", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -93,7 +89,8 @@ public class MainActivity extends Activity {
         } else {
             startService(intent);
         }
-        finish(); // نقفل التطبيق الأساسي عشان تظهر النافذة العائمة
+        Toast.makeText(this, "جاري تشغيل النافذة العائمة...", Toast.LENGTH_SHORT).show();
+        // ملاحظة: شلنا finish() عشان التطبيق يضل مفتوح لو صار خطأ
     }
 
     private void showNewMacroDialog() {
