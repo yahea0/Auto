@@ -10,7 +10,6 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageButton;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 
@@ -38,8 +37,8 @@ public class CoordinatePickerService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 500;
-        params.y = 1000;
+        params.x = 400;
+        params.y = 800;
 
         windowManager.addView(pickerView, params);
         setupTouch();
@@ -73,11 +72,16 @@ public class CoordinatePickerService extends Service {
     }
 
     private void setupButtons() {
-        // زر التأكيد
+        // زر التأكيد (حساب نقطة المنتصف Crosshair بدقة)
         pickerView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
+            View circle = pickerView.findViewById(R.id.pickerCircle);
+            int centerX = params.x + (circle != null ? circle.getWidth() / 2 : 0);
+            int centerY = params.y + (circle != null ? circle.getHeight() / 2 : 0);
+
             Intent intent = new Intent("COORDINATES_PICKED");
-            intent.putExtra("x", params.x);
-            intent.putExtra("y", params.y);
+            intent.setPackage(getPackageName()); // أمان البث
+            intent.putExtra("x", centerX);
+            intent.putExtra("y", centerY);
             sendBroadcast(intent);
             stopSelf();
         });
@@ -97,8 +101,8 @@ public class CoordinatePickerService extends Service {
 
         // زر إعادة التمركز
         pickerView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
-            params.x = 500; // منتصف الشاشة تقريباً
-            params.y = 1000;
+            params.x = 400;
+            params.y = 800;
             windowManager.updateViewLayout(pickerView, params);
         });
     }
@@ -106,6 +110,8 @@ public class CoordinatePickerService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (pickerView != null) windowManager.removeView(pickerView);
+        if (pickerView != null && windowManager != null) {
+            try { windowManager.removeView(pickerView); } catch (Exception ignored) {}
+        }
     }
 }
