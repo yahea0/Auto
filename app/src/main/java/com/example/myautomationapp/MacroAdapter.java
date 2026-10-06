@@ -12,9 +12,11 @@ import java.util.List;
 
 public class MacroAdapter extends RecyclerView.Adapter<MacroAdapter.ViewHolder> {
     private List<Macro> macroList;
+    private MainActivity activity;
 
-    public MacroAdapter(List<Macro> macroList) {
+    public MacroAdapter(List<Macro> macroList, MainActivity activity) {
         this.macroList = macroList;
+        this.activity = activity;
     }
 
     @NonNull
@@ -31,7 +33,13 @@ public class MacroAdapter extends RecyclerView.Adapter<MacroAdapter.ViewHolder> 
         holder.tvDetails.setText(macro.getOrientation() + " | " + macro.getIconName());
 
         holder.btnEdit.setOnClickListener(v -> {
-            Toast.makeText(v.getContext(), "وضع التحرير: " + macro.getName(), Toast.LENGTH_SHORT).show();
+            if (!macro.isConfigured()) {
+                // أول مرة: نطلب صلاحيات
+                activity.checkOverlayPermission(macro);
+            } else {
+                // الماكرو جاهز، نفتح النافذة العائمة
+                Toast.makeText(v.getContext(), "فتح وضع التحرير: " + macro.getName(), Toast.LENGTH_SHORT).show();
+            }
         });
 
         holder.btnPlay.setOnClickListener(v -> {
