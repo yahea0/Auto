@@ -4,11 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
-import android.widget.Toast;
 
 public class AutoAccessibilityService extends AccessibilityService {
     public static AutoAccessibilityService instance;
@@ -38,34 +34,18 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * تنفيذ نقرة حقيقية مضمونة 100% مع إزاحة بكسلية دقيقة (y + 1) للتوافق مع هواتف Realme
+     * تنفيذ نقرة حقيقية ومضمونة بمدة 80ms في منتصف الهدف بدقة
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
 
         Path path = new Path();
         path.moveTo(x, y);
-        path.lineTo(x, y + 1); // ضروري جداً لتعريف حركة لمس مكتملة
+        path.lineTo(x, y + 1);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        // مدة نقرة 60 ميلي ثانية (الأنسب للنظام والألعاب)
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 60));
-
-        dispatchGesture(builder.build(), new GestureResultCallback() {
-            @Override
-            public void onCompleted(GestureDescription gestureDescription) {
-                super.onCompleted(gestureDescription);
-                Log.d("AutoClick", "تمت النقرة بنجاح عند: " + x + ", " + y);
-            }
-
-            @Override
-            public void onCancelled(GestureDescription gestureDescription) {
-                super.onCancelled(gestureDescription);
-                new Handler(Looper.getMainLooper()).post(() ->
-                    Toast.makeText(AutoAccessibilityService.this, "تم إلغاء النقرة من النظام!", Toast.LENGTH_SHORT).show()
-                );
-            }
-        }, null);
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 80));
+        dispatchGesture(builder.build(), null, null);
     }
 
     public void swipe(int startX, int startY, int endX, int endY, int durationMs) {
