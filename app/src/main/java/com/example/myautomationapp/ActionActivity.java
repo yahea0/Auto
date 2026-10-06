@@ -1,22 +1,25 @@
 package com.example.myautomationapp;
 
-import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import java.util.List;
 
-public class ActionActivity extends Activity {
+public class ActionActivity extends AppCompatActivity {
     private ActionAdapter adapter;
     private BroadcastReceiver coordReceiver;
 
@@ -30,42 +33,71 @@ public class ActionActivity extends Activity {
         ImageButton btnBack = findViewById(R.id.btnBack);
         ImageButton btnPlay = findViewById(R.id.btnPlay);
 
-        // تحميل الأكشنات المحفوظة من GlobalData
         adapter = new ActionAdapter(GlobalData.actionList);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
-        // زر الرجوع (تصغير الشاشة)
-        btnBack.setOnClickListener(v -> finish()); // ملاحظة: الحفظ صار تلقائي في GlobalData
+        btnBack.setOnClickListener(v -> finish());
 
-        // زر التشغيل
+        // زر التشغيل الحقيقي
         btnPlay.setOnClickListener(v -> {
             if (GlobalData.actionList.isEmpty()) {
-                Toast.makeText(this, "لا يوجد أكشنات!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "جاري تشغيل " + GlobalData.actionList.size() + " أكشن...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "لا يوجد أكشنات مضافة بعد!", Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            // فحص هل خدمة إمكانية الوصول مفعّلة
+            if (!AutoAccessibilityService.isRunning()) {
+                Toast.makeText(this, "يجب تفعيل خدمة إمكانية الوصول للتطبيق للبدء بالنقر!", Toast.LENGTH_LONG).show();
+                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                startActivity(intent);
+                return;
+            }
+
+            Toast.makeText(this, "جاري تنفيذ الأكشنات تلقائياً...", Toast.LENGTH_SHORT).show();
+
+            // تنفيذ الأكشنات بالترتيب في مسار خلفي لتجنب تجميد الشاشة
+            new Thread(() -> {
+                for (Action action : GlobalData.actionList) {
+                    if ("Click (x, y)".equals(action.getType()) && AutoAccessibilityService.instance != null) {
+                        AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                    }
+                    try {
+                        Thread.sleep(action.getDelayMs());
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                new Handler(Looper.getMainLooper()).post(() ->
+                        Toast.makeText(ActionActivity.this, "اكتمل تنفيذ جميع الأكشنات بنجاح!", Toast.LENGTH_SHORT).show()
+                );
+            }).start();
         });
 
-        // زر إضافة أكشن
         btnAddAction.setOnClickListener(v -> showActionSelectionDialog());
 
-        // مستقبل الإحداثيات من خدمة التقاط الإحداثيات
+        // استقبال الإحداثيات بأمان وتوافق مع كافة أنظمة أندرويد
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 int x = intent.getIntExtra("x", 0);
                 int y = intent.getIntExtra("y", 0);
-                GlobalData.actionList.add(new Action("Click (x, y)", "X: " + x + ", Y: " + y));
+                GlobalData.actionList.add(new Action("Click (x, y)", "X: " + x + ", Y: " + y, x, y));
                 adapter.notifyDataSetChanged();
-                Toast.makeText(ActionActivity.this, "تمت إضافة النقر عند: " + x + ", " + y, Toast.LENGTH_SHORT).show();
+                Toast.makeText(ActionActivity.this, "تمت إضافة النقر عند: (" + x + ", " + y + ")", Toast.LENGTH_SHORT).show();
             }
         };
-        registerReceiver(coordReceiver, new IntentFilter("COORDINATES_PICKED"), Context.RECEIVER_EXPORTED);
+
+        ContextCompat.registerReceiver(
+                this,
+                coordReceiver,
+                new IntentFilter("COORDINATES_PICKED"),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+        );
     }
 
     private void showActionSelectionDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
         LayoutInflater inflater = this.getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_action_select, null);
         builder.setView(dialogView);
@@ -74,24 +106,23 @@ public class ActionActivity extends Activity {
 
         dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
             dialog.dismiss();
-            // إطلاق خدمة التقاط الإحداثيات
             Intent intent = new Intent(ActionActivity.this, CoordinatePickerService.class);
             startService(intent);
         });
 
         dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Click Image (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Click Image (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.btnSwipe).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Swipe (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Swipe (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Wait (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Wait (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
