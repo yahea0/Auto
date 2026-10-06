@@ -8,11 +8,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
@@ -41,7 +39,7 @@ public class ActionActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
-        // زر التشغيل الحقيقي
+        // زر التشغيل
         btnPlay.setOnClickListener(v -> {
             if (GlobalData.actionList.isEmpty()) {
                 Toast.makeText(this, "لا يوجد أكشنات مضافة بعد!", Toast.LENGTH_SHORT).show();
@@ -49,7 +47,7 @@ public class ActionActivity extends AppCompatActivity {
             }
 
             if (!AutoAccessibilityService.isRunning()) {
-                Toast.makeText(this, "يرجى تفعيل خدمة Auto في إمكانية الوصول أولاً!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "يرجى تفعيل خدمة إمكانية الوصول أولاً!", Toast.LENGTH_LONG).show();
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                 return;
             }
@@ -59,16 +57,23 @@ public class ActionActivity extends AppCompatActivity {
             new Thread(() -> {
                 for (Action action : GlobalData.actionList) {
                     if (AutoAccessibilityService.instance != null) {
-                        if ("Click (x, y)".equals(action.getType())) {
+                        String type = action.getType();
+                        if ("Click (x, y)".equals(type)) {
                             AutoAccessibilityService.instance.click(action.getX(), action.getY());
-                        } else if ("Press Back".equals(action.getType())) {
-                            AutoAccessibilityService.instance.pressBack();
-                        } else if ("Swipe".equals(action.getType())) {
-                            // سحب تجريبي للأعلى
+                        } else if ("Swipe".equals(type)) {
                             AutoAccessibilityService.instance.swipe(500, 1200, 500, 400, 400);
+                        } else if ("Press Back".equals(type)) {
+                            AutoAccessibilityService.instance.pressBack();
+                        } else if ("Press Home".equals(type)) {
+                            AutoAccessibilityService.instance.pressHome();
+                        } else if ("Open Recent".equals(type)) {
+                            AutoAccessibilityService.instance.openRecents();
+                        } else if ("Notification".equals(type)) {
+                            AutoAccessibilityService.instance.openNotifications();
+                        } else if ("Screenshot".equals(type)) {
+                            AutoAccessibilityService.instance.takeScreenshot();
                         }
                     }
-
                     try {
                         Thread.sleep(action.getDelayMs());
                     } catch (InterruptedException e) {
@@ -111,71 +116,121 @@ public class ActionActivity extends AppCompatActivity {
 
         AlertDialog dialog = builder.create();
 
-        // 1. خيار النقر عند إحداثيات
+        // 1. Click XY
         dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
             dialog.dismiss();
             Intent intent = new Intent(ActionActivity.this, CoordinatePickerService.class);
             startService(intent);
         });
 
-        // 2. خيار النقر على صورة (Macrorify Vision)
+        // 2. Click Image
         dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "ميزة النقر البصري (سنبنيها في الخطوة التالية)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Click Image (مربع القص)", Toast.LENGTH_SHORT).show();
         });
 
-        // 3. خيار السحب (Swipe)
+        // 3. Click Text
+        dialogView.findViewById(R.id.btnClickText).setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "Click Text (قريباً)", Toast.LENGTH_SHORT).show();
+        });
+
+        // 4. Swipe
         dialogView.findViewById(R.id.btnSwipe).setOnClickListener(v -> {
             dialog.dismiss();
-            Action swipeAction = new Action("Swipe", "سحب للأعلى من (500,1200) إلى (500,400)");
-            swipeAction.setDelayMs(800);
+            Action swipeAction = new Action("Swipe", "سحب للأعلى (500,1200) إلى (500,400)");
+            swipeAction.setDelayMs(600);
             GlobalData.actionList.add(swipeAction);
             adapter.notifyDataSetChanged();
             Toast.makeText(this, "تمت إضافة أمر السحب", Toast.LENGTH_SHORT).show();
         });
 
-        // 4. خيار الانتظار (Wait)
-        dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
+        // 5. Open App
+        dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
             dialog.dismiss();
-            showWaitDurationDialog();
+            Toast.makeText(this, "Open App (قريباً)", Toast.LENGTH_SHORT).show();
         });
 
-        // 5. خيار الرجوع (Press Back)
+        // 6. Press Back
         dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
             dialog.dismiss();
-            Action backAction = new Action("Press Back", "الضغط على زر رجوع الجهاز");
+            Action backAction = new Action("Press Back", "زر رجوع الجهاز");
             backAction.setDelayMs(500);
             GlobalData.actionList.add(backAction);
             adapter.notifyDataSetChanged();
             Toast.makeText(this, "تمت إضافة أمر الرجوع", Toast.LENGTH_SHORT).show();
         });
 
-        dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
+        // 7. Press Home
+        dialogView.findViewById(R.id.btnPressHome).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Open App (قريباً)", Toast.LENGTH_SHORT).show();
+            Action homeAction = new Action("Press Home", "زر الشاشة الرئيسية");
+            homeAction.setDelayMs(500);
+            GlobalData.actionList.add(homeAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر الهوم", Toast.LENGTH_SHORT).show();
+        });
+
+        // 8. Open Recent
+        dialogView.findViewById(R.id.btnOpenRecent).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action recentAction = new Action("Open Recent", "شاشة التطبيقات الحديثة");
+            recentAction.setDelayMs(500);
+            GlobalData.actionList.add(recentAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر التطبيقات الحديثة", Toast.LENGTH_SHORT).show();
+        });
+
+        // 9. Notification
+        dialogView.findViewById(R.id.btnOpenNotification).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action notifAction = new Action("Notification", "فتح لوحة الإشعارات");
+            notifAction.setDelayMs(500);
+            GlobalData.actionList.add(notifAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر الإشعارات", Toast.LENGTH_SHORT).show();
+        });
+
+        // 10. Screenshot
+        dialogView.findViewById(R.id.btnScreenshot).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action shotAction = new Action("Screenshot", "أخذ لقطة شاشة");
+            shotAction.setDelayMs(600);
+            GlobalData.actionList.add(shotAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة لقطة الشاشة", Toast.LENGTH_SHORT).show();
+        });
+
+        // 11. Toast Message
+        dialogView.findViewById(R.id.btnToastMessage).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action toastAction = new Action("Toast Message", "رسالة منبثقة");
+            toastAction.setDelayMs(400);
+            GlobalData.actionList.add(toastAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة رسالة Toast", Toast.LENGTH_SHORT).show();
+        });
+
+        // 12. Wait
+        dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action waitAction = new Action("Wait", "انتظار 1 ثانية");
+            waitAction.setDelayMs(1000);
+            GlobalData.actionList.add(waitAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة الانتظار", Toast.LENGTH_SHORT).show();
+        });
+
+        // 13. Stop Macro
+        dialogView.findViewById(R.id.btnStopMacro).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action stopAction = new Action("Stop Macro", "إيقاف الماكرو");
+            GlobalData.actionList.add(stopAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر الإيقاف", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
-    }
-
-    private void showWaitDurationDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("مدة الانتظار (بالثواني)");
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
-        input.setText("1");
-        builder.setView(input);
-
-        builder.setPositiveButton("إضافة", (d, which) -> {
-            String text = input.getText().toString();
-            int seconds = text.isEmpty() ? 1 : Integer.parseInt(text);
-            Action waitAction = new Action("Wait", "انتظار " + seconds + " ثواني");
-            waitAction.setDelayMs(seconds * 1000);
-            GlobalData.actionList.add(waitAction);
-            adapter.notifyDataSetChanged();
-        });
-        builder.setNegativeButton("إلغاء", null);
-        builder.show();
     }
 
     @Override
