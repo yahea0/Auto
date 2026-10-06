@@ -12,12 +12,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
@@ -29,6 +31,7 @@ public class FloatingWindowService extends Service {
     private View floatingView;
     private WindowManager.LayoutParams params;
     private boolean isMinimized = false;
+    private boolean isMenuOpen = false;
     private static final String CHANNEL_ID = "AutoServiceChannel";
 
     @Nullable
@@ -57,9 +60,7 @@ public class FloatingWindowService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        
-        // ننتظر شوي عشان النظام يستوعب الصلاحيات (نفس أسلوب Macrorify)
-        new Handler(Looper.getMainLooper()).postDelayed(this::addOverlayView, 1500);
+        new Handler(Looper.getMainLooper()).postDelayed(this::addOverlayView, 1000);
     }
 
     private void addOverlayView() {
@@ -95,7 +96,7 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        // جعل النافذة قابلة للسحب
+        // 1. جعل النافذة قابلة للسحب مع تقييدها داخل الشاشة
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -113,6 +114,29 @@ public class FloatingWindowService extends Service {
                     case MotionEvent.ACTION_MOVE:
                         params.x = initialX + (int) (event.getRawX() - initialTouchX);
                         params.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        
+                        // تقييد النافذة داخل حدود الشاشة
+                        DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
+                        int screenWidth = displayMetrics.widthPixels;
+                        int screenHeight = displayMetrics.heightPixels;
+                        
+                        int viewWidth = floatingView.getWidth();
+                        int viewHeight = floatingView.getHeight();
+                        
+                        if (viewWidth == 0 || viewHeight == 0) {
+                            windowManager.updateViewLayout(floatingView, params);
+                            return true;
+                        }
+
+                        // الحد الأيسر
+                        if (params.x < 0) params.x = 0;
+                        // الحد الأيمن
+                        if (params.x > screenWidth - viewWidth) params.x = screenWidth - viewWidth;
+                        // الحد العلوي
+                        if (params.y < 0) params.y = 0;
+                        // الحد السفلي
+                        if (params.y > screenHeight - viewHeight) params.y = screenHeight - viewHeight;
+                        
                         windowManager.updateViewLayout(floatingView, params);
                         return true;
                 }
@@ -120,20 +144,61 @@ public class FloatingWindowService extends Service {
             }
         });
 
-        // زر التصغير
+        // 2. زر التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
+            LinearLayout expandedLayout = floatingView.findViewById(R.id.expandedLayout);
+            LinearLayout menuLayout = floatingView.findViewById(R.id.menuLayout);
+            
             if (isMinimized) {
-                floatingView.findViewById(R.id.expandedLayout).setVisibility(View.VISIBLE);
+                expandedLayout.setVisibility(View.VISIBLE);
                 btnMinimize.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
             } else {
-                floatingView.findViewById(R.id.expandedLayout).setVisibility(View.GONE);
+                expandedLayout.setVisibility(View.GONE);
+                menuLayout.setVisibility(View.GONE);
                 btnMinimize.setImageResource(android.R.drawable.ic_menu_add);
             }
             isMinimized = !isMinimized;
+            isMenuOpen = false;
+        });
+
+        // 3. زر القائمة (اللي بيطلع الخيارات)
+        ImageButton btnMenu = floatingView.findViewById(R.id.btnMenu);
+        btnMenu.setOnClickListener(v -> {
+            LinearLayout menuLayout = floatingView.findViewById(R.id.menuLayout);
+            if (isMenuOpen) {
+                menuLayout.setVisibility(View.GONE);
+            } else {
+                menuLayout.setVisibility(View.VISIBLE);
+                floatingView.findViewById(R.id.expandedLayout).setVisibility(View.GONE);
+            }
+            isMenuOpen = !isMenuOpen;
+        });
+
+        // 4. أزرار القائمة
+        floatingView.findViewById(R.id.menuManage).setOnClickListener(v -> {
+            Toast.makeText(this, "Manage Actions (قريباً)", Toast.LENGTH_SHORT).show();
+            // هنا رح نفتح شاشة الأكشنات
         });
         
-        // زر إضافة أكشن (سيتم تفعيله لاحقاً)
+        floatingView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
+            Toast.makeText(this, "Run Test (قريباً)", Toast.LENGTH_SHORT).show();
+        });
+        
+        floatingView.findViewById(R.id.menuSave).setOnClickListener(v -> {
+            Toast.makeText(this, "Save (قريباً)", Toast.LENGTH_SHORT).show();
+        });
+        
+        floatingView.findViewById(R.id.menuMore).setOnClickListener(v -> {
+            Toast.makeText(this, "More (قريباً)", Toast.LENGTH_SHORT).show();
+        });
+        
+        floatingView.findViewById(R.id.menuExit).setOnClickListener(v -> {
+            Toast.makeText(this, "Exiting...", Toast.LENGTH_SHORT).show();
+            stopSelf();
+        });
+
+        // 5. زر إضافة أكشن
         floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
             Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
