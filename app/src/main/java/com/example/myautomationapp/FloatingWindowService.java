@@ -17,19 +17,19 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
-import androidx.cardview.widget.CardView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
-    private View floatingView;
+    private View floatingView;      // الزر الدائري
+    private View menuView;          // القائمة المنفصلة
     private WindowManager.LayoutParams params;
+    private WindowManager.LayoutParams menuParams;
     private static final String CHANNEL_ID = "AutoServiceChannel";
-    private CardView menuLayout;
+    private boolean isMenuOpen = false;
 
     @Nullable
     @Override
@@ -57,44 +57,45 @@ public class FloatingWindowService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        new Handler(Looper.getMainLooper()).postDelayed(this::addOverlayView, 1000);
+        new Handler(Looper.getMainLooper()).postDelayed(this::initViews, 1000);
     }
 
-    private void addOverlayView() {
+    private void initViews() {
+        // 1. تهيئة الزر الدائري
+        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
+        int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                WindowManager.LayoutParams.TYPE_PHONE;
+
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType, flags, PixelFormat.TRANSLUCENT);
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = 100;
+        params.y = 200;
+
+        // 2. تهيئة القائمة المنفصلة
+        menuView = LayoutInflater.from(this).inflate(R.layout.menu_layout, null);
+        menuParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType, flags, PixelFormat.TRANSLUCENT);
+        menuParams.gravity = Gravity.CENTER; // السر هنا: في منتصف الشاشة
+
         try {
-            floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
-            menuLayout = floatingView.findViewById(R.id.menuLayout);
-
-            int layoutType;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-            } else {
-                layoutType = WindowManager.LayoutParams.TYPE_PHONE;
-            }
-
-            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
-
-            params = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    layoutType,
-                    flags,
-                    PixelFormat.TRANSLUCENT);
-
-            params.gravity = Gravity.TOP | Gravity.START;
-            params.x = 100;
-            params.y = 200;
-
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "خطأ في إضافة النافذة: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "خطأ في إضافة النافذة", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
-        // منطق السحب والضغط على الدائرة
+        setupFloatingButtonLogic();
+        setupMenuLogic();
+    }
+
+    private void setupFloatingButtonLogic() {
         View circleButton = floatingView.findViewById(R.id.circleButton);
         circleButton.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -114,65 +115,61 @@ public class FloatingWindowService extends Service {
                     case MotionEvent.ACTION_MOVE:
                         float deltaX = event.getRawX() - initialTouchX;
                         float deltaY = event.getRawY() - initialTouchY;
-                        
-                        // إذا تحرك الإصبع أكثر من 10 بكسل، نعتبرها سحبة
-                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
-                            isDragging = true;
-                        }
-                        
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) isDragging = true;
                         if (isDragging) {
                             params.x = initialX + (int) deltaX;
                             params.y = initialY + (int) deltaY;
 
-                            // تقييد النافذة داخل حدود الشاشة
-                            DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
-                            int screenWidth = displayMetrics.widthPixels;
-                            int screenHeight = displayMetrics.heightPixels;
+                            DisplayMetrics dm = getResources().getDisplayMetrics();
                             int viewWidth = floatingView.getWidth();
                             int viewHeight = floatingView.getHeight();
-
                             if (viewWidth > 0 && viewHeight > 0) {
                                 if (params.x < 0) params.x = 0;
-                                if (params.x > screenWidth - viewWidth) params.x = screenWidth - viewWidth;
+                                if (params.x > dm.widthPixels - viewWidth) params.x = dm.widthPixels - viewWidth;
                                 if (params.y < 0) params.y = 0;
-                                if (params.y > screenHeight - viewHeight) params.y = screenHeight - viewHeight;
+                                if (params.y > dm.heightPixels - viewHeight) params.y = dm.heightPixels - viewHeight;
                             }
                             windowManager.updateViewLayout(floatingView, params);
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        // إذا ما تحرك، نعتبرها ضغطة عادية
                         if (!isDragging) {
-                            if (menuLayout.getVisibility() == View.VISIBLE) {
-                                menuLayout.setVisibility(View.GONE);
-                            } else {
-                                menuLayout.setVisibility(View.VISIBLE);
-                            }
+                            toggleMenu();
                         }
                         return true;
                 }
                 return false;
             }
         });
+    }
 
-        // أزرار القائمة
-        floatingView.findViewById(R.id.menuManage).setOnClickListener(v -> {
+    private void toggleMenu() {
+        if (isMenuOpen) {
+            if (menuView.getWindowToken() != null) {
+                windowManager.removeView(menuView);
+            }
+        } else {
+            if (menuView.getWindowToken() == null) {
+                windowManager.addView(menuView, menuParams);
+            }
+        }
+        isMenuOpen = !isMenuOpen;
+    }
+
+    private void setupMenuLogic() {
+        menuView.findViewById(R.id.menuManage).setOnClickListener(v -> {
             Toast.makeText(this, "Manage Actions (قريباً)", Toast.LENGTH_SHORT).show();
         });
-        
-        floatingView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
+        menuView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
             Toast.makeText(this, "Run Test (قريباً)", Toast.LENGTH_SHORT).show();
         });
-        
-        floatingView.findViewById(R.id.menuSave).setOnClickListener(v -> {
+        menuView.findViewById(R.id.menuSave).setOnClickListener(v -> {
             Toast.makeText(this, "Save (قريباً)", Toast.LENGTH_SHORT).show();
         });
-        
-        floatingView.findViewById(R.id.menuMore).setOnClickListener(v -> {
+        menuView.findViewById(R.id.menuMore).setOnClickListener(v -> {
             Toast.makeText(this, "More (قريباً)", Toast.LENGTH_SHORT).show();
         });
-        
-        floatingView.findViewById(R.id.menuExit).setOnClickListener(v -> {
+        menuView.findViewById(R.id.menuExit).setOnClickListener(v -> {
             Toast.makeText(this, "Exiting...", Toast.LENGTH_SHORT).show();
             stopSelf();
         });
@@ -182,8 +179,7 @@ public class FloatingWindowService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID, "Auto Service Channel",
-                    NotificationManager.IMPORTANCE_LOW
-            );
+                    NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(serviceChannel);
         }
@@ -201,11 +197,10 @@ public class FloatingWindowService extends Service {
     public void onDestroy() {
         super.onDestroy();
         if (floatingView != null && windowManager != null) {
-            try {
-                windowManager.removeView(floatingView);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
+        }
+        if (menuView != null && windowManager != null && menuView.getWindowToken() != null) {
+            try { windowManager.removeView(menuView); } catch (Exception ignored) {}
         }
     }
 }
