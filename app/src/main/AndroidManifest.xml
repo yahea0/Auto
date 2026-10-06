@@ -6,11 +6,16 @@
     <application 
         android:label="Auto"
         android:theme="@style/Theme.MyAutomationApp">
+        
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service android:name=".FloatingWindowService" 
+                 android:foregroundServiceType="mediaProjection" 
+                 android:exported="false"/>
     </application>
 </manifest>
