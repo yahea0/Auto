@@ -1,64 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="center">
 
-    <!-- دائرة التصويب -->
+    <!-- 1. صندوق الإحداثيات والتحكم (مطابق تماماً لمايكروفي صورة 20) -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardBackgroundColor="#222222"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- عرض الإحداثيات الحالية -->
+            <TextView
+                android:id="@+id/tvLiveCoords"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="X: 540  Y: 1200"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:paddingStart="4dp"
+                android:paddingBottom="6dp" />
+
+            <!-- أزرار التحكم الأربعة -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 1. إعادة التمركز -->
+                <ImageView
+                    android:id="@+id/btnCenter"
+                    android:layout_width="0dp"
+                    android:layout_height="24dp"
+                    android:layout_weight="1"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    app:tint="#00BCD4" />
+
+                <!-- 2. نسخ الإحداثيات -->
+                <ImageView
+                    android:id="@+id/btnCopy"
+                    android:layout_width="0dp"
+                    android:layout_height="24dp"
+                    android:layout_weight="1"
+                    android:src="@android:drawable/ic_menu_crop"
+                    app:tint="#00BCD4" />
+
+                <!-- 3. إلغاء X -->
+                <ImageView
+                    android:id="@+id/btnCancel"
+                    android:layout_width="0dp"
+                    android:layout_height="24dp"
+                    android:layout_weight="1"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="#FF5252" />
+
+                <!-- 4. تأكيد الصح ✓ -->
+                <ImageView
+                    android:id="@+id/btnConfirm"
+                    android:layout_width="0dp"
+                    android:layout_height="24dp"
+                    android:layout_weight="1"
+                    android:src="@android:drawable/checkbox_on_background"
+                    app:tint="#4CAF50" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- 2. دائرة التصويب الشفافة مع نقطة المركز الدقيقة (صورة 20) -->
     <FrameLayout
         android:id="@+id/pickerCircle"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:background="@drawable/gold_circle">
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:background="@drawable/target_ring">
 
-        <ImageView
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+        <!-- نقطة منتصف الهدف الدقيقة (Center Dot) -->
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
             android:layout_gravity="center"
-            android:src="@android:drawable/ic_menu_compass"
-            android:tint="#121212" />
+            android:background="#00BCD4" />
     </FrameLayout>
 
-    <!-- شريط الأزرار بخلفيات شفافة آمنة 100% بدون أي كراش -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#1E1E1E"
-        android:padding="6dp"
-        android:layout_marginTop="10dp">
-
-        <ImageButton
-            android:id="@+id/btnCenter"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_mylocation"
-            android:background="@android:color/transparent"
-            android:tint="#FFD700" />
-
-        <ImageButton
-            android:id="@+id/btnCopy"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_crop"
-            android:background="@android:color/transparent"
-            android:tint="#FFD700" />
-
-        <ImageButton
-            android:id="@+id/btnCancel"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:background="@android:color/transparent"
-            android:tint="#FF0000" />
-
-        <ImageButton
-            android:id="@+id/btnConfirm"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_edit"
-            android:background="@android:color/transparent"
-            android:tint="#00FF00" />
-    </LinearLayout>
 </LinearLayout>
