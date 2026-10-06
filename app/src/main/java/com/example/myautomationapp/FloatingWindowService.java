@@ -19,7 +19,6 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
@@ -66,10 +65,21 @@ public class FloatingWindowService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        new Handler(Looper.getMainLooper()).postDelayed(this::initViews, 300);
+        new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
+    }
+
+    private void safeInitViews() {
+        try {
+            initViews();
+        } catch (Throwable t) {
+            t.printStackTrace();
+            Toast.makeText(this, "تعذر تشغيل النافذة العائمة: " + t.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 
     private void initViews() {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
@@ -77,7 +87,7 @@ public class FloatingWindowService extends Service {
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
         // 1. الزر العائم الصغير
-        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
+        floatingView = LayoutInflater.from(themedContext).inflate(R.layout.floating_window, null);
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
@@ -86,14 +96,14 @@ public class FloatingWindowService extends Service {
         params.y = 400;
 
         // 2. قائمة مايكروفي المنبثقة الأولى
-        popupMenuView = LayoutInflater.from(this).inflate(R.layout.macrorify_popup_menu, null);
+        popupMenuView = LayoutInflater.from(themedContext).inflate(R.layout.macrorify_popup_menu, null);
         popupParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         popupParams.gravity = Gravity.CENTER;
 
         // 3. شريط مايكروفي HUD العلوي (Main Job)
-        hudBarView = LayoutInflater.from(this).inflate(R.layout.menu_layout, null);
+        hudBarView = LayoutInflater.from(themedContext).inflate(R.layout.menu_layout, null);
         hudParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
@@ -115,6 +125,8 @@ public class FloatingWindowService extends Service {
 
     private void setupFloatingDrag() {
         View circleButton = floatingView.findViewById(R.id.circleButton);
+        if (circleButton == null) return;
+
         circleButton.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
@@ -166,7 +178,6 @@ public class FloatingWindowService extends Service {
         });
     }
 
-    // 1. فتح وإغلاق قائمة مايكروفي المنبثقة الأولى
     private void togglePopupMenu() {
         if (isPopupOpen) {
             if (popupMenuView.getWindowToken() != null) {
@@ -181,38 +192,47 @@ public class FloatingWindowService extends Service {
     }
 
     private void setupPopupMenu() {
-        // Manage Actions: يغلق القائمة المنبثقة ويفتح شريط مايكروفي HUD العلوي!
-        popupMenuView.findViewById(R.id.menuManageActions).setOnClickListener(v -> {
-            togglePopupMenu();
-            openHudBar();
-        });
+        View btnManage = popupMenuView.findViewById(R.id.menuManageActions);
+        if (btnManage != null) {
+            btnManage.setOnClickListener(v -> {
+                togglePopupMenu();
+                openHudBar();
+            });
+        }
 
-        // Run Test
-        popupMenuView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
-            togglePopupMenu();
-            runMacroExecution();
-        });
+        View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
+        if (btnRun != null) {
+            btnRun.setOnClickListener(v -> {
+                togglePopupMenu();
+                runMacroExecution();
+            });
+        }
 
-        // Save
-        popupMenuView.findViewById(R.id.menuSave).setOnClickListener(v -> {
-            togglePopupMenu();
-            Toast.makeText(this, "تم حفظ الماكرو بنجاح!", Toast.LENGTH_SHORT).show();
-        });
+        View btnSave = popupMenuView.findViewById(R.id.menuSave);
+        if (btnSave != null) {
+            btnSave.setOnClickListener(v -> {
+                togglePopupMenu();
+                Toast.makeText(this, "تم حفظ الماكرو بنجاح!", Toast.LENGTH_SHORT).show();
+            });
+        }
 
-        // More
-        popupMenuView.findViewById(R.id.menuMore).setOnClickListener(v -> {
-            togglePopupMenu();
-            Toast.makeText(this, "Settings & Tools (قريباً)", Toast.LENGTH_SHORT).show();
-        });
+        View btnMore = popupMenuView.findViewById(R.id.menuMore);
+        if (btnMore != null) {
+            btnMore.setOnClickListener(v -> {
+                togglePopupMenu();
+                Toast.makeText(this, "Settings & Tools (قريباً)", Toast.LENGTH_SHORT).show();
+            });
+        }
 
-        // Exit
-        popupMenuView.findViewById(R.id.menuExit).setOnClickListener(v -> {
-            togglePopupMenu();
-            stopSelf();
-        });
+        View btnExit = popupMenuView.findViewById(R.id.menuExit);
+        if (btnExit != null) {
+            btnExit.setOnClickListener(v -> {
+                togglePopupMenu();
+                stopSelf();
+            });
+        }
     }
 
-    // 2. التحكم في شريط Main Job العلوي
     private void openHudBar() {
         if (!isHudOpen && hudBarView.getWindowToken() == null) {
             updateHudStatus();
@@ -240,25 +260,28 @@ public class FloatingWindowService extends Service {
     }
 
     private void setupHudButtons() {
-        // زر التصغير ⤢
-        hudBarView.findViewById(R.id.btnCollapse).setOnClickListener(v -> closeHudBar());
+        View btnCollapse = hudBarView.findViewById(R.id.btnCollapse);
+        if (btnCollapse != null) btnCollapse.setOnClickListener(v -> closeHudBar());
 
-        // زر التشغيل ▶
-        hudBarView.findViewById(R.id.btnPlayHud).setOnClickListener(v -> {
-            closeHudBar();
-            runMacroExecution();
-        });
+        View btnPlay = hudBarView.findViewById(R.id.btnPlayHud);
+        if (btnPlay != null) {
+            btnPlay.setOnClickListener(v -> {
+                closeHudBar();
+                runMacroExecution();
+            });
+        }
 
-        // زر إضافة أكشن + (يفتح قائمة الأكشنات الكاملة المطابقة لمايكروفي)
-        hudBarView.findViewById(R.id.btnAddActionHud).setOnClickListener(v -> showFullActionDialog());
+        View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
+        if (btnAdd != null) btnAdd.setOnClickListener(v -> showFullActionDialog());
 
-        // زر المتغيرات (x)
-        hudBarView.findViewById(R.id.btnVariables).setOnClickListener(v ->
-                Toast.makeText(this, "Variables & Expressions", Toast.LENGTH_SHORT).show()
-        );
+        View btnVar = hudBarView.findViewById(R.id.btnVariables);
+        if (btnVar != null) {
+            btnVar.setOnClickListener(v ->
+                    Toast.makeText(this, "Variables & Expressions", Toast.LENGTH_SHORT).show()
+            );
+        }
     }
 
-    // تشغيل الأكشنات بالترتيب
     private void runMacroExecution() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -304,7 +327,6 @@ public class FloatingWindowService extends Service {
         }).start();
     }
 
-    // عرض قائمة الأكشنات المتكاملة والمطابقة لصور مايكروفي
     private void showFullActionDialog() {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
@@ -317,7 +339,8 @@ public class FloatingWindowService extends Service {
         }
 
         // Gesture: Click XY
-        dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
+        View bClickXY = dialogView.findViewById(R.id.btnClickXY);
+        if (bClickXY != null) bClickXY.setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
             Intent intent = new Intent(this, CoordinatePickerService.class);
@@ -325,19 +348,22 @@ public class FloatingWindowService extends Service {
         });
 
         // Gesture: Click Image
-        dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
+        View bClickImg = dialogView.findViewById(R.id.btnClickImage);
+        if (bClickImg != null) bClickImg.setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "مربع قص الصور (الخطوة التالية فوراً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "مربع قص الصور (الخطوة التالية)", Toast.LENGTH_SHORT).show();
         });
 
         // Gesture: Click Text
-        dialogView.findViewById(R.id.btnClickText).setOnClickListener(v -> {
+        View bClickTxt = dialogView.findViewById(R.id.btnClickText);
+        if (bClickTxt != null) bClickTxt.setOnClickListener(v -> {
             dialog.dismiss();
             Toast.makeText(this, "Click Text (OCR)", Toast.LENGTH_SHORT).show();
         });
 
         // Gesture: Swipe
-        dialogView.findViewById(R.id.btnSwipe).setOnClickListener(v -> {
+        View bSwipe = dialogView.findViewById(R.id.btnSwipe);
+        if (bSwipe != null) bSwipe.setOnClickListener(v -> {
             dialog.dismiss();
             Action swipe = new Action("Swipe", "سحب للأعلى (500,1200) إلى (500,400)");
             swipe.setDelayMs(600);
@@ -345,8 +371,16 @@ public class FloatingWindowService extends Service {
             updateHudStatus();
         });
 
+        // Device: Open App
+        View bOpenApp = dialogView.findViewById(R.id.btnOpenApp);
+        if (bOpenApp != null) bOpenApp.setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "Open App", Toast.LENGTH_SHORT).show();
+        });
+
         // Device: Press Back
-        dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
+        View bBack = dialogView.findViewById(R.id.btnPressBack);
+        if (bBack != null) bBack.setOnClickListener(v -> {
             dialog.dismiss();
             Action back = new Action("Press Back", "زر رجوع الجهاز");
             back.setDelayMs(500);
@@ -355,7 +389,8 @@ public class FloatingWindowService extends Service {
         });
 
         // Device: Press Home
-        dialogView.findViewById(R.id.btnPressHome).setOnClickListener(v -> {
+        View bHome = dialogView.findViewById(R.id.btnPressHome);
+        if (bHome != null) bHome.setOnClickListener(v -> {
             dialog.dismiss();
             Action home = new Action("Press Home", "زر الشاشة الرئيسية");
             home.setDelayMs(500);
@@ -364,7 +399,8 @@ public class FloatingWindowService extends Service {
         });
 
         // Device: Open Recent
-        dialogView.findViewById(R.id.btnOpenRecent).setOnClickListener(v -> {
+        View bRecent = dialogView.findViewById(R.id.btnOpenRecent);
+        if (bRecent != null) bRecent.setOnClickListener(v -> {
             dialog.dismiss();
             Action recent = new Action("Open Recent", "التطبيقات الحديثة");
             recent.setDelayMs(500);
@@ -373,7 +409,8 @@ public class FloatingWindowService extends Service {
         });
 
         // Device: Notification
-        dialogView.findViewById(R.id.btnOpenNotification).setOnClickListener(v -> {
+        View bNotif = dialogView.findViewById(R.id.btnOpenNotification);
+        if (bNotif != null) bNotif.setOnClickListener(v -> {
             dialog.dismiss();
             Action notif = new Action("Notification", "سحب شريط الإشعارات");
             notif.setDelayMs(500);
@@ -382,7 +419,8 @@ public class FloatingWindowService extends Service {
         });
 
         // Device: Screenshot
-        dialogView.findViewById(R.id.btnScreenshot).setOnClickListener(v -> {
+        View bShot = dialogView.findViewById(R.id.btnScreenshot);
+        if (bShot != null) bShot.setOnClickListener(v -> {
             dialog.dismiss();
             Action shot = new Action("Screenshot", "التقاط شاشة");
             shot.setDelayMs(600);
@@ -391,16 +429,18 @@ public class FloatingWindowService extends Service {
         });
 
         // Device: Toast Message
-        dialogView.findViewById(R.id.btnToastMessage).setOnClickListener(v -> {
+        View bToast = dialogView.findViewById(R.id.btnToastMessage);
+        if (bToast != null) bToast.setOnClickListener(v -> {
             dialog.dismiss();
-            Action toastAct = new Action("Toast Message", "إظهار رسالة منبثقة");
+            Action toastAct = new Action("Toast Message", "رسالة منبثقة");
             toastAct.setDelayMs(400);
             GlobalData.actionList.add(toastAct);
             updateHudStatus();
         });
 
         // Macro: Wait
-        dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
+        View bWait = dialogView.findViewById(R.id.btnWait);
+        if (bWait != null) bWait.setOnClickListener(v -> {
             dialog.dismiss();
             Action waitAct = new Action("Wait", "انتظار 1 ثانية");
             waitAct.setDelayMs(1000);
@@ -409,9 +449,10 @@ public class FloatingWindowService extends Service {
         });
 
         // Macro: Stop Macro
-        dialogView.findViewById(R.id.btnStopMacro).setOnClickListener(v -> {
+        View bStop = dialogView.findViewById(R.id.btnStopMacro);
+        if (bStop != null) bStop.setOnClickListener(v -> {
             dialog.dismiss();
-            Action stopAct = new Action("Stop Macro", "إيقاف التشغيل");
+            Action stopAct = new Action("Stop Macro", "إيقاف الماكرو");
             GlobalData.actionList.add(stopAct);
             updateHudStatus();
         });
