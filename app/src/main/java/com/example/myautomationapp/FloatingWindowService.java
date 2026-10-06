@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.ServiceCompat;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
@@ -42,14 +43,23 @@ public class FloatingWindowService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        
+        // 1. نبدأ الخدمة الأمامية باستخدام ServiceCompat عشان نضمن التوافق
         createNotificationChannel();
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else {
-            startForeground(1, buildNotification());
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                ServiceCompat.startForeground(this, 1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } else {
+                ServiceCompat.startForeground(this, 1, buildNotification(), 0);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "خطأ في تشغيل الخدمة: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            stopSelf();
+            return;
         }
         
-        // الحيلة رقم 1: نفحص الصلاحية بطريقة حقيقية قبل ما نضيف النافذة
+        // 2. نفحص الصلاحية بطريقة حقيقية قبل ما نضيف النافذة
         if (!canDrawOverlayHack(this)) {
             Toast.makeText(this, "الصلاحية مرفوضة من النظام. يرجى تفعيل 'الظهور فوق التطبيقات' يدوياً.", Toast.LENGTH_LONG).show();
             stopSelf();
@@ -58,39 +68,38 @@ public class FloatingWindowService extends Service {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         
-        // الحيلة رقم 3: ننتظر ثانية كاملة قبل ما نضيف النافذة (عشان ريلمي)
+        // 3. ننتظر ثانيتين كاملتين قبل ما نضيف النافذة (عشان ريلمي)
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             addOverlayView();
-        }, 1000);
+        }, 2000);
     }
     
     private void addOverlayView() {
-        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
-
-        int layoutType;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        } else {
-            layoutType = WindowManager.LayoutParams.TYPE_PHONE;
-        }
-
-        // الحيلة رقم 2: نضيف أعلام جديدة عشان نضمن إن النافذة تشتغل
-        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
-
-        params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                layoutType,
-                flags,
-                PixelFormat.TRANSLUCENT);
-
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 100;
-        params.y = 200;
-
         try {
+            floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
+
+            int layoutType;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+            } else {
+                layoutType = WindowManager.LayoutParams.TYPE_PHONE;
+            }
+
+            int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+
+            params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    layoutType,
+                    flags,
+                    PixelFormat.TRANSLUCENT);
+
+            params.gravity = Gravity.TOP | Gravity.START;
+            params.x = 100;
+            params.y = 200;
+
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
             e.printStackTrace();
