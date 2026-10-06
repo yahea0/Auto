@@ -17,8 +17,6 @@
 
         <service android:name=".FloatingWindowService" 
                  android:foregroundServiceType="specialUse"
-                 android:exported="false">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="overlay"/>
-        </service>
+                 android:exported="false" />
     </application>
 </manifest>
