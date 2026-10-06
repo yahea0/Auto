@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <!-- تدرج لوني ذهبي فخم -->
+    <gradient
+        android:startColor="#FFD700"
+        android:endColor="#B8860B"
+        android:angle="270"/>
+    <!-- حدود ذهبية فاتحة -->
+    <stroke
+        android:width="2dp"
+        android:color="#FFF8DC"/>
+</shape>
