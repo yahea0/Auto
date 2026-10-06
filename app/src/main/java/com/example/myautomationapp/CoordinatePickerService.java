@@ -18,8 +18,11 @@ import androidx.annotation.Nullable;
 
 public class CoordinatePickerService extends Service {
     private WindowManager windowManager;
-    private View pickerView;
-    private WindowManager.LayoutParams params;
+    private View controlBoxView;   // صندوق الإحداثيات والأزرار
+    private View circleTargetView; // دائرة التصويب المستقلة الحرة
+    
+    private WindowManager.LayoutParams boxParams;
+    private WindowManager.LayoutParams circleParams;
     private TextView tvLiveCoords;
 
     @Nullable
@@ -32,87 +35,92 @@ public class CoordinatePickerService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
-        pickerView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
-        tvLiveCoords = pickerView.findViewById(R.id.tvLiveCoords);
-
+        
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
-
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
-        params = new WindowManager.LayoutParams(
+
+        // 1. إعداد صندوق الإحداثيات في أعلى الشاشة (مستقل)
+        controlBoxView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
+        tvLiveCoords = controlBoxView.findViewById(R.id.tvLiveCoords);
+        boxParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 400;
-        params.y = 800;
+        boxParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        boxParams.y = 100;
+
+        // 2. إعداد دائرة التصويب الصغيرة الحرة (46dp) في منتصف الشاشة
+        circleTargetView = LayoutInflater.from(themedContext).inflate(R.layout.picker_circle_layout, null);
+        circleParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType, flags, PixelFormat.TRANSLUCENT);
+        circleParams.gravity = Gravity.TOP | Gravity.START;
+        circleParams.x = 500;
+        circleParams.y = 900;
 
         try {
-            windowManager.addView(pickerView, params);
+            windowManager.addView(controlBoxView, boxParams);
+            windowManager.addView(circleTargetView, circleParams);
         } catch (Exception e) {
-            e.printStackTrace();
             stopSelf();
             return;
         }
 
-        updateCoordText();
-        setupTouch();
-        setupButtons();
+        updateLiveCoords();
+        setupCircleDrag();
+        setupBoxButtons();
     }
 
-    private void updateCoordText() {
+    private int getExactCenterX() {
+        int w = circleTargetView.getWidth() > 0 ? circleTargetView.getWidth() : 120;
+        return circleParams.x + (w / 2);
+    }
+
+    private int getExactCenterY() {
+        int h = circleTargetView.getHeight() > 0 ? circleTargetView.getHeight() : 120;
+        return circleParams.y + (h / 2);
+    }
+
+    private void updateLiveCoords() {
         if (tvLiveCoords != null) {
-            int centerX = getCalculatedCenterX();
-            int centerY = getCalculatedCenterY();
-            tvLiveCoords.setText("X: " + centerX + "  Y: " + centerY);
+            tvLiveCoords.setText("X: " + getExactCenterX() + "  Y: " + getExactCenterY());
         }
     }
 
-    private int getCalculatedCenterX() {
-        View circle = pickerView.findViewById(R.id.pickerCircle);
-        return params.x + (circle != null ? (circle.getLeft() + circle.getWidth() / 2) : 110);
-    }
-
-    private int getCalculatedCenterY() {
-        View circle = pickerView.findViewById(R.id.pickerCircle);
-        return params.y + (circle != null ? (circle.getTop() + circle.getHeight() / 2) : 150);
-    }
-
-    private void setupTouch() {
-        View circle = pickerView.findViewById(R.id.pickerCircle);
-        if (circle == null) return;
-
-        circle.setOnTouchListener(new View.OnTouchListener() {
-            private int initialX, initialY;
-            private float initialTouchX, initialTouchY;
+    // سحب دائرة التصويب بحرية تامة دون أي عوائق
+    private void setupCircleDrag() {
+        circleTargetView.setOnTouchListener(new View.OnTouchListener() {
+            private int initX, initY;
+            private float touchX, touchY;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
+                        initX = circleParams.x;
+                        initY = circleParams.y;
+                        touchX = event.getRawX();
+                        touchY = event.getRawY();
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
-                        int targetX = initialX + (int) (event.getRawX() - initialTouchX);
-                        int targetY = initialY + (int) (event.getRawY() - initialTouchY);
+                        int targetX = initX + (int) (event.getRawX() - touchX);
+                        int targetY = initY + (int) (event.getRawY() - touchY);
 
                         DisplayMetrics dm = getResources().getDisplayMetrics();
-                        int w = pickerView.getWidth() > 0 ? pickerView.getWidth() : 220;
-                        int h = pickerView.getHeight() > 0 ? pickerView.getHeight() : 200;
+                        int cw = circleTargetView.getWidth() > 0 ? circleTargetView.getWidth() : 120;
+                        int ch = circleTargetView.getHeight() > 0 ? circleTargetView.getHeight() : 120;
 
                         if (targetX < 0) targetX = 0;
-                        if (targetX > dm.widthPixels - w) targetX = dm.widthPixels - w;
-                        if (targetY < 60) targetY = 60;
-                        if (targetY > dm.heightPixels - h - 60) targetY = dm.heightPixels - h - 60;
+                        if (targetX > dm.widthPixels - cw) targetX = dm.widthPixels - cw;
+                        if (targetY < 40) targetY = 40;
+                        if (targetY > dm.heightPixels - ch - 40) targetY = dm.heightPixels - ch - 40;
 
-                        params.x = targetX;
-                        params.y = targetY;
-                        windowManager.updateViewLayout(pickerView, params);
-                        updateCoordText();
+                        circleParams.x = targetX;
+                        circleParams.y = targetY;
+                        windowManager.updateViewLayout(circleTargetView, circleParams);
+                        updateLiveCoords();
                         return true;
                 }
                 return false;
@@ -120,46 +128,53 @@ public class CoordinatePickerService extends Service {
         });
     }
 
-    private void setupButtons() {
-        pickerView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
-            int centerX = getCalculatedCenterX();
-            int centerY = getCalculatedCenterY();
+    private void setupBoxButtons() {
+        // تأكيد النقطة وإرسالها
+        controlBoxView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
+            int cx = getExactCenterX();
+            int cy = getExactCenterY();
 
             Intent intent = new Intent("COORDINATES_PICKED");
             intent.setPackage(getPackageName());
-            intent.putExtra("x", centerX);
-            intent.putExtra("y", centerY);
+            intent.putExtra("x", cx);
+            intent.putExtra("y", cy);
             sendBroadcast(intent);
             stopSelf();
         });
 
-        pickerView.findViewById(R.id.btnCancel).setOnClickListener(v -> stopSelf());
+        // إلغاء
+        controlBoxView.findViewById(R.id.btnCancel).setOnClickListener(v -> stopSelf());
 
-        pickerView.findViewById(R.id.btnCopy).setOnClickListener(v -> {
-            int cx = getCalculatedCenterX();
-            int cy = getCalculatedCenterY();
-            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        // نسخ
+        controlBoxView.findViewById(R.id.btnCopy).setOnClickListener(v -> {
+            int cx = getExactCenterX();
+            int cy = getExactCenterY();
+            android.content.ClipboardManager cb = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
             android.content.ClipData clip = android.content.ClipData.newPlainText("Coords", cx + ", " + cy);
-            if (clipboard != null) {
-                clipboard.setPrimaryClip(clip);
+            if (cb != null) {
+                cb.setPrimaryClip(clip);
                 Toast.makeText(this, "تم نسخ الإحداثيات: " + cx + ", " + cy, Toast.LENGTH_SHORT).show();
             }
         });
 
-        pickerView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
+        // إعادة التمركز في منتصف الشاشة
+        controlBoxView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
             DisplayMetrics dm = getResources().getDisplayMetrics();
-            params.x = (dm.widthPixels / 2) - (pickerView.getWidth() / 2);
-            params.y = (dm.heightPixels / 2) - (pickerView.getHeight() / 2);
-            windowManager.updateViewLayout(pickerView, params);
-            updateCoordText();
+            circleParams.x = (dm.widthPixels / 2) - (circleTargetView.getWidth() / 2);
+            circleParams.y = (dm.heightPixels / 2) - (circleTargetView.getHeight() / 2);
+            windowManager.updateViewLayout(circleTargetView, circleParams);
+            updateLiveCoords();
         });
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (pickerView != null && windowManager != null) {
-            try { windowManager.removeView(pickerView); } catch (Exception ignored) {}
+        if (controlBoxView != null && windowManager != null) {
+            try { windowManager.removeView(controlBoxView); } catch (Exception ignored) {}
+        }
+        if (circleTargetView != null && windowManager != null) {
+            try { windowManager.removeView(circleTargetView); } catch (Exception ignored) {}
         }
     }
 }
