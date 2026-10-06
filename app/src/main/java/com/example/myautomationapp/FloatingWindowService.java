@@ -57,6 +57,8 @@ public class FloatingWindowService extends Service {
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        
+        // ننتظر شوي عشان النظام يستوعب الصلاحيات (نفس أسلوب Macrorify)
         new Handler(Looper.getMainLooper()).postDelayed(this::addOverlayView, 1500);
     }
 
@@ -64,7 +66,6 @@ public class FloatingWindowService extends Service {
         try {
             floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
 
-            // نجرب TYPE_PHONE أولاً (أفضل توافق مع ريلمي)
             int layoutType;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
@@ -86,29 +87,15 @@ public class FloatingWindowService extends Service {
             params.x = 100;
             params.y = 200;
 
-            // نحاول نضيف النافذة
-            try {
-                windowManager.addView(floatingView, params);
-            } catch (Exception e1) {
-                // إذا فشل، نجرب TYPE_PHONE
-                e1.printStackTrace();
-                try {
-                    params.type = WindowManager.LayoutParams.TYPE_PHONE;
-                    windowManager.addView(floatingView, params);
-                } catch (Exception e2) {
-                    e2.printStackTrace();
-                    Toast.makeText(this, "النظام رفض النافذة نهائياً. تأكد من تفعيل صلاحية 'النوافذ المنبثقة'.", Toast.LENGTH_LONG).show();
-                    stopSelf();
-                    return;
-                }
-            }
+            windowManager.addView(floatingView, params);
         } catch (Exception e) {
             e.printStackTrace();
+            Toast.makeText(this, "خطأ في إضافة النافذة: " + e.getMessage(), Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
-        // السحب
+        // جعل النافذة قابلة للسحب
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -133,7 +120,7 @@ public class FloatingWindowService extends Service {
             }
         });
 
-        // التصغير
+        // زر التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
             if (isMinimized) {
@@ -145,7 +132,8 @@ public class FloatingWindowService extends Service {
             }
             isMinimized = !isMinimized;
         });
-
+        
+        // زر إضافة أكشن (سيتم تفعيله لاحقاً)
         floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
             Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
