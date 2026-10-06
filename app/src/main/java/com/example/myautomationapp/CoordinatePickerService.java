@@ -5,12 +5,14 @@ import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.DisplayMetrics;
 import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 
@@ -18,6 +20,7 @@ public class CoordinatePickerService extends Service {
     private WindowManager windowManager;
     private View pickerView;
     private WindowManager.LayoutParams params;
+    private TextView tvLiveCoords;
 
     @Nullable
     @Override
@@ -28,9 +31,9 @@ public class CoordinatePickerService extends Service {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
-        // استخدام ContextThemeWrapper لمنع أي انهيار في التصميم
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         pickerView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
+        tvLiveCoords = pickerView.findViewById(R.id.tvLiveCoords);
 
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
@@ -48,13 +51,31 @@ public class CoordinatePickerService extends Service {
             windowManager.addView(pickerView, params);
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "تعذر فتح أداة الإحداثيات", Toast.LENGTH_SHORT).show();
             stopSelf();
             return;
         }
 
+        updateCoordText();
         setupTouch();
         setupButtons();
+    }
+
+    private void updateCoordText() {
+        if (tvLiveCoords != null) {
+            int centerX = getCalculatedCenterX();
+            int centerY = getCalculatedCenterY();
+            tvLiveCoords.setText("X: " + centerX + "  Y: " + centerY);
+        }
+    }
+
+    private int getCalculatedCenterX() {
+        View circle = pickerView.findViewById(R.id.pickerCircle);
+        return params.x + (circle != null ? (circle.getLeft() + circle.getWidth() / 2) : 110);
+    }
+
+    private int getCalculatedCenterY() {
+        View circle = pickerView.findViewById(R.id.pickerCircle);
+        return params.y + (circle != null ? (circle.getTop() + circle.getHeight() / 2) : 150);
     }
 
     private void setupTouch() {
@@ -74,10 +95,24 @@ public class CoordinatePickerService extends Service {
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
                         return true;
+
                     case MotionEvent.ACTION_MOVE:
-                        params.x = initialX + (int) (event.getRawX() - initialTouchX);
-                        params.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        int targetX = initialX + (int) (event.getRawX() - initialTouchX);
+                        int targetY = initialY + (int) (event.getRawY() - initialTouchY);
+
+                        DisplayMetrics dm = getResources().getDisplayMetrics();
+                        int w = pickerView.getWidth() > 0 ? pickerView.getWidth() : 220;
+                        int h = pickerView.getHeight() > 0 ? pickerView.getHeight() : 200;
+
+                        if (targetX < 0) targetX = 0;
+                        if (targetX > dm.widthPixels - w) targetX = dm.widthPixels - w;
+                        if (targetY < 60) targetY = 60;
+                        if (targetY > dm.heightPixels - h - 60) targetY = dm.heightPixels - h - 60;
+
+                        params.x = targetX;
+                        params.y = targetY;
                         windowManager.updateViewLayout(pickerView, params);
+                        updateCoordText();
                         return true;
                 }
                 return false;
@@ -86,11 +121,9 @@ public class CoordinatePickerService extends Service {
     }
 
     private void setupButtons() {
-        // زر التأكيد (إرسال الإحداثيات)
         pickerView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
-            View circle = pickerView.findViewById(R.id.pickerCircle);
-            int centerX = params.x + (circle != null ? circle.getWidth() / 2 : 0);
-            int centerY = params.y + (circle != null ? circle.getHeight() / 2 : 0);
+            int centerX = getCalculatedCenterX();
+            int centerY = getCalculatedCenterY();
 
             Intent intent = new Intent("COORDINATES_PICKED");
             intent.setPackage(getPackageName());
@@ -100,24 +133,25 @@ public class CoordinatePickerService extends Service {
             stopSelf();
         });
 
-        // زر الإلغاء
         pickerView.findViewById(R.id.btnCancel).setOnClickListener(v -> stopSelf());
 
-        // زر النسخ
         pickerView.findViewById(R.id.btnCopy).setOnClickListener(v -> {
+            int cx = getCalculatedCenterX();
+            int cy = getCalculatedCenterY();
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            android.content.ClipData clip = android.content.ClipData.newPlainText("Coords", "X: " + params.x + " Y: " + params.y);
+            android.content.ClipData clip = android.content.ClipData.newPlainText("Coords", cx + ", " + cy);
             if (clipboard != null) {
                 clipboard.setPrimaryClip(clip);
-                Toast.makeText(this, "تم نسخ الإحداثيات", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "تم نسخ الإحداثيات: " + cx + ", " + cy, Toast.LENGTH_SHORT).show();
             }
         });
 
-        // زر إعادة التمركز
         pickerView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
-            params.x = 400;
-            params.y = 800;
+            DisplayMetrics dm = getResources().getDisplayMetrics();
+            params.x = (dm.widthPixels / 2) - (pickerView.getWidth() / 2);
+            params.y = (dm.heightPixels / 2) - (pickerView.getHeight() / 2);
             windowManager.updateViewLayout(pickerView, params);
+            updateCoordText();
         });
     }
 
