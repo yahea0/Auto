@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -26,7 +27,10 @@ public class CoordinatePickerService extends Service {
     public void onCreate() {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        pickerView = LayoutInflater.from(this).inflate(R.layout.picker_layout, null);
+
+        // استخدام ContextThemeWrapper لمنع أي انهيار في التصميم
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        pickerView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
 
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
@@ -40,13 +44,23 @@ public class CoordinatePickerService extends Service {
         params.x = 400;
         params.y = 800;
 
-        windowManager.addView(pickerView, params);
+        try {
+            windowManager.addView(pickerView, params);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "تعذر فتح أداة الإحداثيات", Toast.LENGTH_SHORT).show();
+            stopSelf();
+            return;
+        }
+
         setupTouch();
         setupButtons();
     }
 
     private void setupTouch() {
         View circle = pickerView.findViewById(R.id.pickerCircle);
+        if (circle == null) return;
+
         circle.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
@@ -72,14 +86,14 @@ public class CoordinatePickerService extends Service {
     }
 
     private void setupButtons() {
-        // زر التأكيد (حساب نقطة المنتصف Crosshair بدقة)
+        // زر التأكيد (إرسال الإحداثيات)
         pickerView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
             View circle = pickerView.findViewById(R.id.pickerCircle);
             int centerX = params.x + (circle != null ? circle.getWidth() / 2 : 0);
             int centerY = params.y + (circle != null ? circle.getHeight() / 2 : 0);
 
             Intent intent = new Intent("COORDINATES_PICKED");
-            intent.setPackage(getPackageName()); // أمان البث
+            intent.setPackage(getPackageName());
             intent.putExtra("x", centerX);
             intent.putExtra("y", centerY);
             sendBroadcast(intent);
