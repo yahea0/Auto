@@ -1,35 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- الصلاحيات الأساسية -->
+
+    <!-- صلاحيات الظهور فوق التطبيقات والإشعارات -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    
-    <application 
+
+    <application
+        android:allowBackup="true"
+        android:icon="@android:drawable/sym_def_app_icon"
         android:label="Auto"
         android:theme="@style/Theme.MyAutomationApp">
-        
-        <!-- 1. الشاشة الرئيسية -->
-        <activity android:name=".MainActivity" android:exported="true">
+
+        <!-- الشاشة الرئيسية -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 2. شاشة إدارة الأكشنات -->
-        <activity android:name=".ActionActivity" android:exported="false" />
+        <!-- شاشة إدارة الأكشنات -->
+        <activity
+            android:name=".ActionActivity"
+            android:exported="false" />
 
-        <!-- 3. خدمة النافذة العائمة (الزر الدائري + القائمة) -->
-        <service android:name=".FloatingWindowService" 
-                 android:foregroundServiceType="specialUse"
-                 android:exported="false">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Floating window" />
+        <!-- خدمة النقر التلقائي وإمكانية الوصول (محرك النقر الحقيقي) -->
+        <service
+            android:name=".AutoAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- 4. خدمة التقاط الإحداثيات (الدائرة الثانية اللي بتطلع فوق الشاشة) -->
-        <service android:name=".CoordinatePickerService" 
-                 android:exported="false" />
+        <!-- خدمة النافذة العائمة -->
+        <service
+            android:name=".FloatingWindowService"
+            android:foregroundServiceType="specialUse|mediaProjection"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating control and automation overlay" />
+        </service>
+
+        <!-- خدمة التقاط الإحداثيات -->
+        <service
+            android:name=".CoordinatePickerService"
+            android:exported="false" />
 
     </application>
 </manifest>
