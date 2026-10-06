@@ -2,22 +2,22 @@
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/circleButton"
-    android:layout_width="40dp"
-    android:layout_height="40dp"
-    app:cardCornerRadius="20dp"
+    android:layout_width="42dp"
+    android:layout_height="42dp"
+    app:cardCornerRadius="21dp"
     app:cardBackgroundColor="@android:color/transparent"
-    app:cardElevation="10dp">
+    app:cardElevation="8dp">
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/gold_circle">
+        android:background="@drawable/floating_badge">
 
         <ImageView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
             android:src="@android:drawable/ic_menu_compass"
-            android:padding="10dp"
-            app:tint="#121212" />
+            app:tint="#FFFFFF" />
     </FrameLayout>
 </androidx.cardview.widget.CardView>
