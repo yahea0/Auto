@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="340dp"
+    android:layout_width="350dp"
     android:layout_height="wrap_content"
     app:cardBackgroundColor="#222222"
-    app:cardCornerRadius="10dp"
-    app:cardElevation="12dp">
+    app:cardCornerRadius="12dp"
+    app:cardElevation="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- الشريط العلوي الرئيسي (مطابق للقطة الشاشة) -->
+        <!-- الشريط العلوي الرئيسي (Main Job) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
@@ -21,7 +21,6 @@
             android:paddingStart="10dp"
             android:paddingEnd="10dp">
 
-            <!-- 1. زر التصغير ⤢ -->
             <ImageButton
                 android:id="@+id/btnCollapse"
                 android:layout_width="32dp"
@@ -29,7 +28,6 @@
                 android:src="@drawable/ic_collapse"
                 android:background="@android:color/transparent" />
 
-            <!-- 2. عنوان المهمة وسهم القائمة -->
             <LinearLayout
                 android:id="@+id/layoutJobDropdown"
                 android:layout_width="0dp"
@@ -56,7 +54,6 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <!-- 3. زر التشغيل الفوري ▶ -->
             <ImageButton
                 android:id="@+id/btnPlayHud"
                 android:layout_width="34dp"
@@ -65,7 +62,6 @@
                 android:background="@android:color/transparent"
                 android:tint="#C084FC" />
 
-            <!-- 4. زر المتغيرات (x) -->
             <TextView
                 android:id="@+id/btnVariables"
                 android:layout_width="wrap_content"
@@ -77,7 +73,6 @@
                 android:paddingStart="10dp"
                 android:paddingEnd="10dp" />
 
-            <!-- 5. زر إضافة الأكشن + -->
             <ImageButton
                 android:id="@+id/btnAddActionHud"
                 android:layout_width="34dp"
@@ -87,27 +82,35 @@
                 android:tint="#C084FC" />
         </LinearLayout>
 
-        <!-- خط فاصل خفيف -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="#333333" />
 
-        <!-- صندوق عرض الأكشنات (No Actions) -->
-        <FrameLayout
+        <!-- حاوية عرض بطاقات الأكشن (مثل صورة مايكروفي 17) -->
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp">
+            android:maxHeight="180dp"
+            android:padding="8dp">
 
-            <TextView
-                android:id="@+id/tvHudStatus"
+            <LinearLayout
+                android:id="@+id/layoutActionListContainer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="No Actions"
-                android:textColor="#888888"
-                android:textSize="13sp"
-                android:gravity="center" />
-        </FrameLayout>
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvHudStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No Actions"
+                    android:textColor="#888888"
+                    android:textSize="13sp"
+                    android:gravity="center"
+                    android:padding="12dp" />
+            </LinearLayout>
+        </ScrollView>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>
