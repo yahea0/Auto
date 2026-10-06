@@ -43,8 +43,6 @@ public class FloatingWindowService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        
-        // 1. نبدأ الخدمة الأمامية باستخدام ServiceCompat عشان نضمن التوافق
         createNotificationChannel();
         try {
             if (Build.VERSION.SDK_INT >= 34) {
@@ -54,30 +52,19 @@ public class FloatingWindowService extends Service {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "خطأ في تشغيل الخدمة: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            stopSelf();
-            return;
-        }
-        
-        // 2. نفحص الصلاحية بطريقة حقيقية قبل ما نضيف النافذة
-        if (!canDrawOverlayHack(this)) {
-            Toast.makeText(this, "الصلاحية مرفوضة من النظام. يرجى تفعيل 'الظهور فوق التطبيقات' يدوياً.", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        
-        // 3. ننتظر ثانيتين كاملتين قبل ما نضيف النافذة (عشان ريلمي)
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            addOverlayView();
-        }, 2000);
+        new Handler(Looper.getMainLooper()).postDelayed(this::addOverlayView, 1500);
     }
-    
+
     private void addOverlayView() {
         try {
             floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
 
+            // نجرب TYPE_PHONE أولاً (أفضل توافق مع ريلمي)
             int layoutType;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
@@ -86,7 +73,6 @@ public class FloatingWindowService extends Service {
             }
 
             int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
                     | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
             params = new WindowManager.LayoutParams(
@@ -100,15 +86,29 @@ public class FloatingWindowService extends Service {
             params.x = 100;
             params.y = 200;
 
-            windowManager.addView(floatingView, params);
+            // نحاول نضيف النافذة
+            try {
+                windowManager.addView(floatingView, params);
+            } catch (Exception e1) {
+                // إذا فشل، نجرب TYPE_PHONE
+                e1.printStackTrace();
+                try {
+                    params.type = WindowManager.LayoutParams.TYPE_PHONE;
+                    windowManager.addView(floatingView, params);
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                    Toast.makeText(this, "النظام رفض النافذة نهائياً. تأكد من تفعيل صلاحية 'النوافذ المنبثقة'.", Toast.LENGTH_LONG).show();
+                    stopSelf();
+                    return;
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "خطأ حرج: النظام رفض إضافة النافذة. حاول إعادة تشغيل التطبيق.", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
-        // جعل النافذة قابلة للسحب
+        // السحب
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -133,6 +133,7 @@ public class FloatingWindowService extends Service {
             }
         });
 
+        // التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
             if (isMinimized) {
@@ -144,33 +145,10 @@ public class FloatingWindowService extends Service {
             }
             isMinimized = !isMinimized;
         });
-        
+
         floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
             Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
-    }
-
-    // هذه هي الحيلة: نجرب نضيف نافذة غير مرئية عشان نتأكد إن الصلاحية شغالة
-    private boolean canDrawOverlayHack(Context context) {
-        try {
-            WindowManager mgr = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-            View viewToAdd = new View(context);
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    0, 0,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
-                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
-                            WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
-                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    PixelFormat.TRANSPARENT);
-            viewToAdd.setLayoutParams(params);
-            mgr.addView(viewToAdd, params);
-            mgr.removeView(viewToAdd);
-            return true;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
     }
 
     private void createNotificationChannel() {
