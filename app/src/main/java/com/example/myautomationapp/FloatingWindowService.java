@@ -13,19 +13,22 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
-    private View floatingView;      // الزر الذهبي الصغير
+    private View floatingView;      // الزر البنفسجي الصغير 42dp
     private View hudBarView;        // شريط مايكروفي HUD العائم
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams hudParams;
@@ -68,22 +71,22 @@ public class FloatingWindowService extends Service {
 
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. الزر الدائري الصغير
+        // 1. تهيئة الزر العائم الصغير
         floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 100;
-        params.y = 300;
+        params.x = 80;
+        params.y = 400;
 
-        // 2. شريط مايكروفي HUD العريض
+        // 2. تهيئة شريط Macrorify HUD
         hudBarView = LayoutInflater.from(this).inflate(R.layout.menu_layout, null);
         hudParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         hudParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        hudParams.y = 150;
+        hudParams.y = 200;
 
         try {
             windowManager.addView(floatingView, params);
@@ -114,16 +117,32 @@ public class FloatingWindowService extends Service {
                         initialTouchY = event.getRawY();
                         isDragging = false;
                         return true;
+
                     case MotionEvent.ACTION_MOVE:
                         float deltaX = event.getRawX() - initialTouchX;
                         float deltaY = event.getRawY() - initialTouchY;
                         if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) isDragging = true;
+
                         if (isDragging) {
-                            params.x = initialX + (int) deltaX;
-                            params.y = initialY + (int) deltaY;
+                            int targetX = initialX + (int) deltaX;
+                            int targetY = initialY + (int) deltaY;
+
+                            // حماية حدود شاشة الهاتف (Realme GT Master Edition) لمنع خروج الزر
+                            DisplayMetrics dm = getResources().getDisplayMetrics();
+                            int viewWidth = floatingView.getWidth() > 0 ? floatingView.getWidth() : 110;
+                            int viewHeight = floatingView.getHeight() > 0 ? floatingView.getHeight() : 110;
+
+                            if (targetX < 0) targetX = 0;
+                            if (targetX > dm.widthPixels - viewWidth) targetX = dm.widthPixels - viewWidth;
+                            if (targetY < 80) targetY = 80;
+                            if (targetY > dm.heightPixels - viewHeight - 80) targetY = dm.heightPixels - viewHeight - 80;
+
+                            params.x = targetX;
+                            params.y = targetY;
                             windowManager.updateViewLayout(floatingView, params);
                         }
                         return true;
+
                     case MotionEvent.ACTION_UP:
                         if (!isDragging) {
                             toggleHudBar();
@@ -135,50 +154,50 @@ public class FloatingWindowService extends Service {
         });
     }
 
-    private void toggleHudBar() {
+    public void toggleHudBar() {
         if (isHudOpen) {
             if (hudBarView.getWindowToken() != null) {
                 windowManager.removeView(hudBarView);
             }
         } else {
             if (hudBarView.getWindowToken() == null) {
-                TextView tvStatus = hudBarView.findViewById(R.id.tvHudStatus);
-                if (tvStatus != null) {
-                    tvStatus.setText(GlobalData.actionList.size() + " Actions Ready");
-                }
+                updateHudStatus();
                 windowManager.addView(hudBarView, hudParams);
             }
         }
         isHudOpen = !isHudOpen;
     }
 
+    private void updateHudStatus() {
+        TextView tvStatus = hudBarView.findViewById(R.id.tvHudStatus);
+        if (tvStatus != null) {
+            if (GlobalData.actionList.isEmpty()) {
+                tvStatus.setText("No Actions");
+            } else {
+                tvStatus.setText(GlobalData.actionList.size() + " Actions Ready");
+            }
+        }
+    }
+
     private void setupHudButtons() {
-        // زر التصغير ⤢
+        // 1. زر التصغير ⤢ للعودة للزر العائم فوراً
         hudBarView.findViewById(R.id.btnCollapse).setOnClickListener(v -> toggleHudBar());
 
-        // زر إضافة أكشن جديد + (فتح شاشة الأكشنات أو الإضافة)
-        hudBarView.findViewById(R.id.btnAddActionHud).setOnClickListener(v -> {
-            toggleHudBar();
-            Intent intent = new Intent(this, ActionActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        });
-
-        // زر التشغيل السريع ▶ فوق أي لعبة أو تطبيق
+        // 2. زر التشغيل الفوري ▶ في نفس المكان بدون فتح أي شاشة
         hudBarView.findViewById(R.id.btnPlayHud).setOnClickListener(v -> {
             if (GlobalData.actionList.isEmpty()) {
-                Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "لا يوجد أكشنات مضافة!", Toast.LENGTH_SHORT).show();
                 return;
             }
             if (!AutoAccessibilityService.isRunning()) {
-                Toast.makeText(this, "فعّل خدمة إمكانية الوصول أولاً!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "يرجى تفعيل خدمة إمكانية الوصول أولاً!", Toast.LENGTH_SHORT).show();
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return;
             }
 
-            // تصغير الشريط للبدء بمراقبة اللعبة
+            // تصغير الشريط فورياً لمراقبة تنفيذ الأكشنات على شاشة الهاتف/اللعبة
             toggleHudBar();
-            Toast.makeText(this, "بدء تنفيذ الماكرو...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "جاري تشغيل الماكرو...", Toast.LENGTH_SHORT).show();
 
             new Thread(() -> {
                 for (Action action : GlobalData.actionList) {
@@ -198,10 +217,81 @@ public class FloatingWindowService extends Service {
                     }
                 }
                 new Handler(Looper.getMainLooper()).post(() ->
-                        Toast.makeText(FloatingWindowService.this, "تم تنفيذ الماكرو بنجاح!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(FloatingWindowService.this, "اكتمل تشغيل الماكرو بنجاح!", Toast.LENGTH_SHORT).show()
                 );
             }).start();
         });
+
+        // 3. زر الإضافة + لإضافة أكشنات من الشريط العائم مباشرة
+        hudBarView.findViewById(R.id.btnAddActionHud).setOnClickListener(v -> showAddActionDialog());
+
+        // 4. زر المتغيرات (x)
+        hudBarView.findViewById(R.id.btnVariables).setOnClickListener(v ->
+                Toast.makeText(this, "Variables & Expressions (قريباً)", Toast.LENGTH_SHORT).show()
+        );
+
+        // 5. قائمة الوظيفة Main Job
+        hudBarView.findViewById(R.id.layoutJobDropdown).setOnClickListener(v ->
+                Toast.makeText(this, "Job Selector (قريباً)", Toast.LENGTH_SHORT).show()
+        );
+    }
+
+    private void showAddActionDialog() {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_action_select, null);
+        builder.setView(dialogView);
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+
+        dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
+            dialog.dismiss();
+            toggleHudBar();
+            Intent intent = new Intent(this, CoordinatePickerService.class);
+            startService(intent);
+        });
+
+        dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "Click Image (الخطوة التالية لمربع القص المطاطي)", Toast.LENGTH_SHORT).show();
+        });
+
+        dialogView.findViewById(R.id.btnSwipe).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action swipe = new Action("Swipe", "سحب للأعلى (500,1200) إلى (500,400)");
+            swipe.setDelayMs(600);
+            GlobalData.actionList.add(swipe);
+            updateHudStatus();
+            Toast.makeText(this, "تمت إضافة أمر السحب", Toast.LENGTH_SHORT).show();
+        });
+
+        dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action waitAction = new Action("Wait", "انتظار 1 ثانية");
+            waitAction.setDelayMs(1000);
+            GlobalData.actionList.add(waitAction);
+            updateHudStatus();
+            Toast.makeText(this, "تمت إضافة انتظار 1 ثانية", Toast.LENGTH_SHORT).show();
+        });
+
+        dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action backAction = new Action("Press Back", "الضغط على زر رجوع الجهاز");
+            backAction.setDelayMs(500);
+            GlobalData.actionList.add(backAction);
+            updateHudStatus();
+            Toast.makeText(this, "تمت إضافة أمر الرجوع", Toast.LENGTH_SHORT).show();
+        });
+
+        dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "Open App (قريباً)", Toast.LENGTH_SHORT).show();
+        });
+
+        dialog.show();
     }
 
     private void createNotificationChannel() {
@@ -216,7 +306,7 @@ public class FloatingWindowService extends Service {
 
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Auto Macrorify Engine")
+                .setContentTitle("Macrorify HUD Engine")
                 .setContentText("الشريط العائم نشط")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .build();
