@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
             startService(intent);
         }
         Toast.makeText(this, "جاري تشغيل النافذة العائمة...", Toast.LENGTH_SHORT).show();
+        // شلنا finish() عشان لو صار خطأ يبين
     }
 
     private void showNewMacroDialog() {
