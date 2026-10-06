@@ -80,7 +80,7 @@ public class FloatingWindowService extends Service {
         menuParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
-        menuParams.gravity = Gravity.CENTER; // السر هنا: في منتصف الشاشة
+        menuParams.gravity = Gravity.CENTER; // في منتصف الشاشة
 
         try {
             windowManager.addView(floatingView, params);
@@ -158,17 +158,29 @@ public class FloatingWindowService extends Service {
 
     private void setupMenuLogic() {
         menuView.findViewById(R.id.menuManage).setOnClickListener(v -> {
-            Toast.makeText(this, "Manage Actions (قريباً)", Toast.LENGTH_SHORT).show();
+            // 1. إغلاق القائمة العائمة
+            if (menuView.getWindowToken() != null) {
+                windowManager.removeView(menuView);
+                isMenuOpen = false;
+            }
+            // 2. فتح شاشة الأكشنات
+            Intent intent = new Intent(this, ActionActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
         });
+        
         menuView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
             Toast.makeText(this, "Run Test (قريباً)", Toast.LENGTH_SHORT).show();
         });
+        
         menuView.findViewById(R.id.menuSave).setOnClickListener(v -> {
             Toast.makeText(this, "Save (قريباً)", Toast.LENGTH_SHORT).show();
         });
+        
         menuView.findViewById(R.id.menuMore).setOnClickListener(v -> {
             Toast.makeText(this, "More (قريباً)", Toast.LENGTH_SHORT).show();
         });
+        
         menuView.findViewById(R.id.menuExit).setOnClickListener(v -> {
             Toast.makeText(this, "Exiting...", Toast.LENGTH_SHORT).show();
             stopSelf();
