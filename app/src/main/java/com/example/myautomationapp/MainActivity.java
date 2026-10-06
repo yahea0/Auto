@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private MacroAdapter adapter;
     private static final int OVERLAY_PERMISSION_REQ_CODE = 1234;
     private static final int MEDIA_PROJECTION_REQ_CODE = 1001;
+    private Macro pendingMacro;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,23 +38,18 @@ public class MainActivity extends Activity {
         fabAdd.setOnClickListener(v -> showNewMacroDialog());
     }
 
-    // دالة عشان نطلب صلاحية النافذة العائمة
     public void checkOverlayPermission(Macro macro) {
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName()));
             startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
-            // حفظ الماكرو مؤقتاً عشان نكمل بعدين
             pendingMacro = macro;
         } else {
             requestMediaProjection(macro);
         }
     }
 
-    private Macro pendingMacro;
-
     private void requestMediaProjection(Macro macro) {
-        // طلب صلاحية تسجيل الشاشة
         android.media.projection.MediaProjectionManager projectionManager = 
                 (android.media.projection.MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         startActivityForResult(projectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQ_CODE);
@@ -68,7 +64,7 @@ public class MainActivity extends Activity {
             if (Settings.canDrawOverlays(this)) {
                 if (pendingMacro != null) requestMediaProjection(pendingMacro);
             } else {
-                Toast.makeText(this, "صلاحية النافذة العائمة مطلوبة", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "صلاحية الظهور فوق التطبيقات مطلوبة", Toast.LENGTH_SHORT).show();
             }
         } 
         else if (requestCode == MEDIA_PROJECTION_REQ_CODE) {
@@ -83,25 +79,27 @@ public class MainActivity extends Activity {
     private void showSetupDialog(Macro macro) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("Interface");
-        
         String[] options = {"إعدادات قوية (Beta)", "إعدادات عادية"};
         builder.setItems(options, (dialog, which) -> {
-            // تم اختيار الإعدادات، نعتبر الماكرو جاهز
             macro.setConfigured(true);
             adapter.notifyDataSetChanged();
             
-            // نفتح النافذة العائمة
             Intent intent = new Intent(MainActivity.this, FloatingWindowService.class);
             intent.putExtra("macro_name", macro.getName());
-            startService(intent);
-            finish(); // نقفل التطبيق الأساسي عشان تظهر النافذة
+            
+            // نستخدم startForegroundService لأندرويد 8+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+            finish();
         });
         builder.setNegativeButton("CANCEL", null);
         builder.show();
     }
 
     private void showNewMacroDialog() {
-        // ... (نفس الكود القديم لإنشاء ماكرو جديد) ...
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("New Macro");
         final EditText input = new EditText(this);
@@ -117,19 +115,15 @@ public class MainActivity extends Activity {
     }
 
     private void showOrientationDialog(String name) {
-        // ... (نفس الكود القديم) ...
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("Orientation");
         final String[] orientations = {"Portrait", "Landscape"};
-        builder.setItems(orientations, (dialog, which) -> {
-            showIconDialog(name, orientations[which]);
-        });
+        builder.setItems(orientations, (dialog, which) -> showIconDialog(name, orientations[which]));
         builder.setNegativeButton("CANCEL", null);
         builder.show();
     }
 
     private void showIconDialog(String name, String orientation) {
-        // ... (نفس الكود القديم) ...
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("Icon (Optional)");
         final EditText input = new EditText(this);
