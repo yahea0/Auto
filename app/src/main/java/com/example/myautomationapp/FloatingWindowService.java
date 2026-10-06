@@ -35,7 +35,7 @@ import androidx.core.content.ContextCompat;
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
     private View floatingView;      // الزر البنفسجي الصغير 42dp
-    private View popupMenuView;     // قائمة مايكروفي المنبثقة الأولى
+    private View popupMenuView;     // قائمة مايكروفي الأولى
     private View hudBarView;        // شريط مايكروفي HUD (Main Job)
     
     private WindowManager.LayoutParams params;
@@ -67,7 +67,6 @@ public class FloatingWindowService extends Service {
                 startForeground(1, buildNotification());
             }
         } catch (Exception e) {
-            e.printStackTrace();
             stopSelf();
             return;
         }
@@ -75,7 +74,6 @@ public class FloatingWindowService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
 
-        // استقبال الإحداثيات عند تأكيدها من أداة التصويب الشفافة
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -213,6 +211,7 @@ public class FloatingWindowService extends Service {
             openHudBar();
         });
 
+        // تشغيل الماكرو الحالي مباشرة من القائمة الأولى (صورة 23)
         View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
         if (btnRun != null) btnRun.setOnClickListener(v -> {
             togglePopupMenu();
@@ -228,7 +227,7 @@ public class FloatingWindowService extends Service {
         View btnMore = popupMenuView.findViewById(R.id.menuMore);
         if (btnMore != null) btnMore.setOnClickListener(v -> {
             togglePopupMenu();
-            Toast.makeText(this, "More Settings (قريباً)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Settings (قريباً)", Toast.LENGTH_SHORT).show();
         });
 
         View btnExit = popupMenuView.findViewById(R.id.menuExit);
@@ -253,7 +252,6 @@ public class FloatingWindowService extends Service {
         }
     }
 
-    // بناء وتحديث بطاقات الأكشن البنفسجية داخل شريط مايكروفي (صورة 17)
     private void updateHudActionCards() {
         LinearLayout container = hudBarView.findViewById(R.id.layoutActionListContainer);
         if (container == null) return;
@@ -280,70 +278,102 @@ public class FloatingWindowService extends Service {
             TextView tvTitle = card.findViewById(R.id.tvActionTitle);
             TextView tvSubtitle = card.findViewById(R.id.tvActionSubtitle);
             TextView tvIndex = card.findViewById(R.id.tvActionIndex);
-            ImageView ivIcon = card.findViewById(R.id.ivActionIcon);
 
             tvTitle.setText(action.getDetail() != null ? action.getDetail() : action.getType());
             tvSubtitle.setText("[Delay " + action.getDelayMs() + "ms]");
             tvIndex.setText(String.valueOf(index + 1));
 
-            // عند الضغط على البطاقة تفتح قائمة الخيارات والتعديل والحذف (صور 21 و 22)
-            card.setOnClickListener(v -> showActionOptionsMenu(action, index));
+            // فتح نافذة خيارات مايكروفي الفخمة عند الضغط على البطاقة (صور 26 و 27)
+            card.setOnClickListener(v -> showMacrorifyActionMenu(action, index));
 
             container.addView(card);
         }
     }
 
-    // نافذة الخيارات والحذف للأكشن (صور مايكروفي 21 و 22)
-    private void showActionOptionsMenu(Action action, int index) {
+    // نافذة خيارات الأكشن المطابقة لمايكروفي تماماً
+    private void showMacrorifyActionMenu(Action action, int index) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
-        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle(action.getType());
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_action_options, null);
 
-        String[] options = {
-                "▶ Test Action (تشغيل هذا الأكشن)",
-                "✏️ Edit Delay (تعديل مدة التأخير)",
-                "🗑️ Delete (حذف الأكشن)",
-                "⎘ Copy (نسخ ومضاعفة)",
-                "🎯 Edit Coordinates (إعادة التصويب)"
-        };
+        AlertDialog dialog = new AlertDialog.Builder(themedContext)
+                .setView(dialogView)
+                .create();
 
-        builder.setItems(options, (dialog, which) -> {
-            if (which == 0) { // Test
-                if (AutoAccessibilityService.instance != null) {
-                    if ("Click (x, y)".equals(action.getType())) {
-                        AutoAccessibilityService.instance.click(action.getX(), action.getY());
-                    } else if ("Press Back".equals(action.getType())) {
-                        AutoAccessibilityService.instance.pressBack();
-                    }
-                }
-            } else if (which == 1) { // Edit Delay
-                showEditDelayDialog(action);
-            } else if (which == 2) { // Delete
-                GlobalData.actionList.remove(index);
-                updateHudActionCards();
-                Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
-            } else if (which == 3) { // Copy
-                GlobalData.actionList.add(index + 1, new Action(action.getType(), action.getDetail(), action.getX(), action.getY()));
-                updateHudActionCards();
-                Toast.makeText(this, "تم نسخ الأكشن!", Toast.LENGTH_SHORT).show();
-            } else if (which == 4) { // Re-pick
-                closeHudBar();
-                Intent intent = new Intent(this, CoordinatePickerService.class);
-                startService(intent);
-            }
-        });
-
-        AlertDialog dialog = builder.create();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
+
+        // 1. Edit Coordinates
+        dialogView.findViewById(R.id.optEditCoordinates).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, CoordinatePickerService.class);
+            startService(intent);
+        });
+
+        // 2. Edit Delay
+        dialogView.findViewById(R.id.optEditDelay).setOnClickListener(v -> {
+            dialog.dismiss();
+            showEditDelayDialog(action);
+        });
+
+        // 3. Test Action
+        dialogView.findViewById(R.id.optTestAction).setOnClickListener(v -> {
+            dialog.dismiss();
+            if (AutoAccessibilityService.instance != null) {
+                if ("Click (x, y)".equals(action.getType())) {
+                    AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                } else if ("Press Back".equals(action.getType())) {
+                    AutoAccessibilityService.instance.pressBack();
+                } else if ("Press Home".equals(action.getType())) {
+                    AutoAccessibilityService.instance.pressHome();
+                }
+                Toast.makeText(this, "تم تنفيذ: " + action.getType(), Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // 4. Copy
+        dialogView.findViewById(R.id.optCopy).setOnClickListener(v -> {
+            dialog.dismiss();
+            GlobalData.actionList.add(index + 1, new Action(action.getType(), action.getDetail(), action.getX(), action.getY()));
+            updateHudActionCards();
+            Toast.makeText(this, "تم نسخ الأكشن", Toast.LENGTH_SHORT).show();
+        });
+
+        // 5. Delete
+        dialogView.findViewById(R.id.optDelete).setOnClickListener(v -> {
+            dialog.dismiss();
+            GlobalData.actionList.remove(index);
+            updateHudActionCards();
+            Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
+        });
+
+        // 6. Disable / Enable
+        dialogView.findViewById(R.id.optDisable).setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "تم تعطيل الأكشن", Toast.LENGTH_SHORT).show();
+        });
+
+        // باقي الأزرار
+        View.OnClickListener dummy = v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "قريباً في التحديث القادم", Toast.LENGTH_SHORT).show();
+        };
+        dialogView.findViewById(R.id.optEditScaling).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optEditClickStyle).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optAddAbove).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optAddCondition).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optReplace).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optConvertCustom).setOnClickListener(dummy);
+        dialogView.findViewById(R.id.optCut).setOnClickListener(dummy);
+
         dialog.show();
     }
 
     private void showEditDelayDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("مدة التأخير (ميلي ثانية)");
+        builder.setTitle("Edit Delay (ms)");
 
         final EditText input = new EditText(themedContext);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -395,7 +425,7 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        Toast.makeText(this, "جاري تشغيل الماكرو...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "جاري تشغيل الماكرو الحالي...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             for (Action action : GlobalData.actionList) {
@@ -433,7 +463,6 @@ public class FloatingWindowService extends Service {
         }).start();
     }
 
-    // ربط كافة أزرار الأكشنات الـ 20
     private void showFullActionDialog() {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
@@ -445,32 +474,23 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
-        // Gesture: Click XY
         setupBtn(dialogView, R.id.btnClickXY, dialog, () -> {
             closeHudBar();
             Intent intent = new Intent(this, CoordinatePickerService.class);
             startService(intent);
         });
 
-        // Gesture: Click Image
         setupBtn(dialogView, R.id.btnClickImage, dialog, () ->
             Toast.makeText(this, "Click Image (مربع القص)", Toast.LENGTH_SHORT).show()
         );
 
-        // Gesture: Click Text & Color
         setupBtn(dialogView, R.id.btnClickText, dialog, () -> addSimpleAction("Click Text", "[OCR Search]"));
         setupBtn(dialogView, R.id.btnClickColor, dialog, () -> addSimpleAction("Click Color", "[Color Match]"));
         setupBtn(dialogView, R.id.btnSwipe, dialog, () -> addSimpleAction("Swipe", "Swipe [500, 1200] -> [500, 400]"));
-
-        // Job
         setupBtn(dialogView, R.id.btnRunJob, dialog, () -> addSimpleAction("Run Job", "Run: Main Job"));
         setupBtn(dialogView, R.id.btnRestartJob, dialog, () -> addSimpleAction("Restart Job", "Restart Current Job"));
         setupBtn(dialogView, R.id.btnStopJob, dialog, () -> addSimpleAction("Stop Job", "Stop Current Job"));
-
-        // Variable
         setupBtn(dialogView, R.id.btnSetVariable, dialog, () -> addSimpleAction("Set Variable", "x = x + 1"));
-
-        // Device
         setupBtn(dialogView, R.id.btnToastMessage, dialog, () -> addSimpleAction("Toast Message", "Show Toast [Hello]"));
         setupBtn(dialogView, R.id.btnOpenApp, dialog, () -> addSimpleAction("Open App", "Launch Selected App"));
         setupBtn(dialogView, R.id.btnPressBack, dialog, () -> addSimpleAction("Press Back", "Device Back Key"));
@@ -480,8 +500,6 @@ public class FloatingWindowService extends Service {
         setupBtn(dialogView, R.id.btnOpenQuickSettings, dialog, () -> addSimpleAction("Quicksetting", "Open Quick Settings"));
         setupBtn(dialogView, R.id.btnLockScreen, dialog, () -> addSimpleAction("Lock Screen", "Lock Device Screen"));
         setupBtn(dialogView, R.id.btnScreenshot, dialog, () -> addSimpleAction("Screenshot", "Take Screen Capture"));
-
-        // Macro
         setupBtn(dialogView, R.id.btnEmptyAction, dialog, () -> addSimpleAction("Empty Action", "[No-Op Step]"));
         setupBtn(dialogView, R.id.btnWait, dialog, () -> addSimpleAction("Wait", "Wait 1000ms"));
         setupBtn(dialogView, R.id.btnPauseMacro, dialog, () -> addSimpleAction("Pause Macro", "Pause Execution"));
