@@ -1,81 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="200dp"
+    android:layout_width="320dp"
     android:layout_height="wrap_content"
-    app:cardBackgroundColor="#1E1E1E"
-    app:cardCornerRadius="16dp"
+    app:cardBackgroundColor="#212121"
+    app:cardCornerRadius="14dp"
     app:cardElevation="15dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:orientation="vertical">
 
+        <!-- الشريط العلوي الرئيسي المطابق لمايكروفي -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <!-- 1. زر التصغير للزر العائم ⤢ -->
+            <ImageButton
+                android:id="@+id/btnCollapse"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:src="@android:drawable/ic_menu_revert"
+                android:background="@android:color/transparent"
+                android:tint="#C084FC" />
+
+            <!-- 2. عنوان المهمة والدروب داون -->
+            <TextView
+                android:id="@+id/tvJobTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Main Job ▼"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <!-- 3. زر تشغيل الماكرو ▶ -->
+            <ImageButton
+                android:id="@+id/btnPlayHud"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:src="@android:drawable/ic_media_play"
+                android:background="@android:color/transparent"
+                android:tint="#C084FC" />
+
+            <!-- 4. زر إضافة أكشن جديد + -->
+            <ImageButton
+                android:id="@+id/btnAddActionHud"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:src="@android:drawable/ic_input_add"
+                android:background="@android:color/transparent"
+                android:tint="#C084FC" />
+        </LinearLayout>
+
+        <!-- نص يعرض عدد الأكشنات الحالية -->
         <TextView
-            android:id="@+id/menuManage"
+            android:id="@+id/tvHudStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Manage Actions"
-            android:textColor="#FFD700"
-            android:padding="12dp"
-            android:textStyle="bold"
-            android:drawableStart="@android:drawable/ic_menu_manage"
-            android:drawablePadding="12dp"
-            android:drawableTint="#FFD700"
-            android:gravity="center_vertical" />
+            android:text="0 Actions"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
 
-        <TextView
-            android:id="@+id/menuRunTest"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Run Test"
-            android:textColor="#FFD700"
-            android:padding="12dp"
-            android:textStyle="bold"
-            android:drawableStart="@android:drawable/ic_media_play"
-            android:drawablePadding="12dp"
-            android:drawableTint="#FFD700"
-            android:gravity="center_vertical" />
-
-        <TextView
-            android:id="@+id/menuSave"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Save"
-            android:textColor="#FFD700"
-            android:padding="12dp"
-            android:textStyle="bold"
-            android:drawableStart="@android:drawable/ic_menu_save"
-            android:drawablePadding="12dp"
-            android:drawableTint="#FFD700"
-            android:gravity="center_vertical" />
-
-        <TextView
-            android:id="@+id/menuMore"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="More"
-            android:textColor="#FFD700"
-            android:padding="12dp"
-            android:textStyle="bold"
-            android:drawableStart="@android:drawable/ic_menu_more"
-            android:drawablePadding="12dp"
-            android:drawableTint="#FFD700"
-            android:gravity="center_vertical" />
-
-        <TextView
-            android:id="@+id/menuExit"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Exit"
-            android:textColor="#FFD700"
-            android:padding="12dp"
-            android:textStyle="bold"
-            android:drawableStart="@android:drawable/ic_menu_close_clear_cancel"
-            android:drawablePadding="12dp"
-            android:drawableTint="#FFD700"
-            android:gravity="center_vertical" />
     </LinearLayout>
 </androidx.cardview.widget.CardView>
