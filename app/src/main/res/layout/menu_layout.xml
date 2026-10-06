@@ -1,76 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="320dp"
+    android:layout_width="340dp"
     android:layout_height="wrap_content"
-    app:cardBackgroundColor="#212121"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="15dp">
+    app:cardBackgroundColor="#222222"
+    app:cardCornerRadius="10dp"
+    app:cardElevation="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- الشريط العلوي الرئيسي المطابق لمايكروفي -->
+        <!-- الشريط العلوي الرئيسي (مطابق للقطة الشاشة) -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="50dp"
+            android:layout_height="48dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
 
-            <!-- 1. زر التصغير للزر العائم ⤢ -->
+            <!-- 1. زر التصغير ⤢ -->
             <ImageButton
                 android:id="@+id/btnCollapse"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:src="@android:drawable/ic_menu_revert"
-                android:background="@android:color/transparent"
-                android:tint="#C084FC" />
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_collapse"
+                android:background="@android:color/transparent" />
 
-            <!-- 2. عنوان المهمة والدروب داون -->
-            <TextView
-                android:id="@+id/tvJobTitle"
+            <!-- 2. عنوان المهمة وسهم القائمة -->
+            <LinearLayout
+                android:id="@+id/layoutJobDropdown"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="Main Job ▼"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:gravity="center" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp">
 
-            <!-- 3. زر تشغيل الماكرو ▶ -->
+                <TextView
+                    android:id="@+id/tvJobTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Main Job"
+                    android:textColor="#FFFFFF"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="  ▼"
+                    android:textColor="#AAAAAA"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- 3. زر التشغيل الفوري ▶ -->
             <ImageButton
                 android:id="@+id/btnPlayHud"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:src="@android:drawable/ic_media_play"
                 android:background="@android:color/transparent"
                 android:tint="#C084FC" />
 
-            <!-- 4. زر إضافة أكشن جديد + -->
+            <!-- 4. زر المتغيرات (x) -->
+            <TextView
+                android:id="@+id/btnVariables"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="(x)"
+                android:textColor="#C084FC"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp" />
+
+            <!-- 5. زر إضافة الأكشن + -->
             <ImageButton
                 android:id="@+id/btnAddActionHud"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:src="@android:drawable/ic_input_add"
                 android:background="@android:color/transparent"
                 android:tint="#C084FC" />
         </LinearLayout>
 
-        <!-- نص يعرض عدد الأكشنات الحالية -->
-        <TextView
-            android:id="@+id/tvHudStatus"
+        <!-- خط فاصل خفيف -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#333333" />
+
+        <!-- صندوق عرض الأكشنات (No Actions) -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 Actions"
-            android:textColor="#AAAAAA"
-            android:textSize="12sp"
-            android:gravity="center"
-            android:paddingBottom="8dp" />
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvHudStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No Actions"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                android:gravity="center" />
+        </FrameLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>
