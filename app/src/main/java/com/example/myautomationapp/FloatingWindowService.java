@@ -30,6 +30,11 @@ public class FloatingWindowService extends Service {
     public IBinder onBind(Intent intent) { return null; }
 
     @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
@@ -64,7 +69,6 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        // جعل النافذة قابلة للسحب
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -89,7 +93,6 @@ public class FloatingWindowService extends Service {
             }
         });
 
-        // زر التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
             if (isMinimized) {
