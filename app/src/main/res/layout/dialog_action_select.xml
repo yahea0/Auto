@@ -11,29 +11,15 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- هيدر القائمة -->
-        <LinearLayout
+        <!-- العنوان الرئيسي -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingBottom="12dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Action"
-                android:textColor="#FFFFFF"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <ImageView
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:src="@android:drawable/ic_menu_help"
-                app:tint="#C084FC" />
-        </LinearLayout>
+            android:text="Action"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:paddingBottom="12dp" />
 
         <!-- 1. قسم Gesture -->
         <TextView
@@ -43,7 +29,6 @@
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:paddingTop="8dp"
             android:paddingBottom="8dp" />
 
         <GridLayout
@@ -60,9 +45,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -70,14 +53,12 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_menu_compass"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Click (x, y)"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
 
@@ -90,9 +71,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -100,14 +79,12 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_menu_gallery"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Click Image"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
 
@@ -120,9 +97,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -130,14 +105,38 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_menu_search"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Click Text"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <!-- Click Color -->
+            <LinearLayout
+                android:id="@+id/btnClickColor"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_slideshow"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Click Color"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
 
@@ -150,9 +149,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -160,19 +157,144 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_menu_sort_by_size"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Swipe (x, y)"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
         </GridLayout>
 
-        <!-- 2. قسم Device -->
+        <!-- 2. قسم Job -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⠶ Job"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="12dp"
+            android:paddingBottom="8dp" />
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <LinearLayout
+                android:id="@+id/btnRunJob"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_media_play"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Run Job"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnRestartJob"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Restart Job"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnStopJob"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Stop Job"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </GridLayout>
+
+        <!-- 3. قسم Variable -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="(x) Variable"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="12dp"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/btnSetVariable"
+            android:layout_width="160dp"
+            android:layout_height="52dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp">
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/action_icon_circle"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_edit"
+                app:tint="#FFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Set Variable"
+                android:textColor="#1E1E1E"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- 4. قسم Device -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -188,187 +310,6 @@
             android:layout_height="wrap_content"
             android:columnCount="2">
 
-            <!-- Open App (مطابق لمايكروفي بالصاروخ) -->
-            <LinearLayout
-                android:id="@+id/btnOpenApp"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_menu_send"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Open App"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Press Back -->
-            <LinearLayout
-                android:id="@+id/btnPressBack"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_menu_revert"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Press Back"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Press Home -->
-            <LinearLayout
-                android:id="@+id/btnPressHome"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_menu_myplaces"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Press Home"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Open Recent -->
-            <LinearLayout
-                android:id="@+id/btnOpenRecent"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_menu_recent_history"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Open Recent"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Open Notification -->
-            <LinearLayout
-                android:id="@+id/btnOpenNotification"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_popup_reminder"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Notification"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Screenshot -->
-            <LinearLayout
-                android:id="@+id/btnScreenshot"
-                android:layout_width="0dp"
-                android:layout_height="52dp"
-                android:layout_columnWeight="1"
-                android:layout_margin="4dp"
-                android:background="@drawable/action_card_bg"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/action_icon_circle"
-                    android:padding="6dp"
-                    android:src="@android:drawable/ic_menu_camera"
-                    app:tint="#FFFFFF" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Screenshot"
-                    android:textColor="#1E1E1E"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:layout_marginStart="8dp" />
-            </LinearLayout>
-
-            <!-- Toast Message -->
             <LinearLayout
                 android:id="@+id/btnToastMessage"
                 android:layout_width="0dp"
@@ -377,9 +318,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -387,19 +326,217 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_dialog_info"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Toast Msg"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnOpenApp"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_send"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Open App"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnPressBack"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_revert"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Press Back"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnPressHome"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_myplaces"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Press Home"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnOpenRecent"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_recent_history"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Open Recent"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnOpenNotification"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_popup_reminder"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Notification"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnOpenQuickSettings"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_preferences"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Quicksetting"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnLockScreen"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_lock_lock"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Lock Screen"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnScreenshot"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_camera"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Screenshot"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
         </GridLayout>
 
-        <!-- 3. قسم Macro -->
+        <!-- 5. قسم Macro -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -415,7 +552,31 @@
             android:layout_height="wrap_content"
             android:columnCount="2">
 
-            <!-- Wait -->
+            <LinearLayout
+                android:id="@+id/btnEmptyAction"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_view"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Empty Action"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/btnWait"
                 android:layout_width="0dp"
@@ -424,9 +585,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -434,18 +593,40 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_lock_idle_charging"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Wait (Time)"
+                    android:text="Wait"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
 
-            <!-- Stop Macro -->
+            <LinearLayout
+                android:id="@+id/btnPauseMacro"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_media_pause"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pause Macro"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/btnStopMacro"
                 android:layout_width="0dp"
@@ -454,9 +635,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/action_card_bg"
                 android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
-
+                android:paddingStart="8dp">
                 <ImageView
                     android:layout_width="32dp"
                     android:layout_height="32dp"
@@ -464,17 +643,50 @@
                     android:padding="6dp"
                     android:src="@android:drawable/ic_delete"
                     app:tint="#FFFFFF" />
-
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Stop Macro"
                     android:textColor="#1E1E1E"
                     android:textStyle="bold"
-                    android:textSize="13sp"
                     android:layout_marginStart="8dp" />
             </LinearLayout>
         </GridLayout>
+
+        <!-- 6. قسم Custom Action -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="💡 Custom Action"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="12dp"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/btnAddCustom"
+            android:layout_width="160dp"
+            android:layout_height="52dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp">
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/action_icon_circle"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_add"
+                app:tint="#FFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add Custom"
+                android:textColor="#1E1E1E"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
