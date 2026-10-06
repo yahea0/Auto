@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <!-- خلفية شفافة سماوية بنسبة 85% -->
-    <solid android:color="#2500BCD4" />
-    <!-- إطار سماوي نيون رفيع -->
+    <solid android:color="#2000BCD4" />
     <stroke
         android:width="2dp"
         android:color="#00BCD4" />
