@@ -20,6 +20,7 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
+import androidx.cardview.widget.CardView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
@@ -28,7 +29,7 @@ public class FloatingWindowService extends Service {
     private View floatingView;
     private WindowManager.LayoutParams params;
     private static final String CHANNEL_ID = "AutoServiceChannel";
-    private LinearLayout menuLayout;
+    private CardView menuLayout;
 
     @Nullable
     @Override
