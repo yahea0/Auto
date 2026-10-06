@@ -4,11 +4,14 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -39,8 +42,6 @@ public class FloatingWindowService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        
-        // 1. نبدأ الخدمة الأمامية فوراً عشان النظام ما يقتلها
         createNotificationChannel();
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
@@ -48,8 +49,22 @@ public class FloatingWindowService extends Service {
             startForeground(1, buildNotification());
         }
         
-        // 2. نجرب نضيف النافذة العائمة
+        // الحيلة رقم 1: نفحص الصلاحية بطريقة حقيقية قبل ما نضيف النافذة
+        if (!canDrawOverlayHack(this)) {
+            Toast.makeText(this, "الصلاحية مرفوضة من النظام. يرجى تفعيل 'الظهور فوق التطبيقات' يدوياً.", Toast.LENGTH_LONG).show();
+            stopSelf();
+            return;
+        }
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        
+        // الحيلة رقم 3: ننتظر ثانية كاملة قبل ما نضيف النافذة (عشان ريلمي)
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            addOverlayView();
+        }, 1000);
+    }
+    
+    private void addOverlayView() {
         floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
 
         int layoutType;
@@ -59,11 +74,16 @@ public class FloatingWindowService extends Service {
             layoutType = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
+        // الحيلة رقم 2: نضيف أعلام جديدة عشان نضمن إن النافذة تشتغل
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                flags,
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.START;
@@ -73,14 +93,13 @@ public class FloatingWindowService extends Service {
         try {
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
-            // إذا فشل، نظهر رسالة ونوقف الخدمة بأمان بدل ما نكرش
             e.printStackTrace();
-            Toast.makeText(this, "خطأ: لم يتم تفعيل خيار 'الظهور فوق التطبيقات' بشكل صحيح. يرجى تفعيله من الإعدادات.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "خطأ حرج: النظام رفض إضافة النافذة. حاول إعادة تشغيل التطبيق.", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
-        // 3. جعل النافذة قابلة للسحب
+        // جعل النافذة قابلة للسحب
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -105,7 +124,6 @@ public class FloatingWindowService extends Service {
             }
         });
 
-        // 4. زر التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
             if (isMinimized) {
@@ -118,10 +136,32 @@ public class FloatingWindowService extends Service {
             isMinimized = !isMinimized;
         });
         
-        // 5. زر إضافة أكشن
         floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
             Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    // هذه هي الحيلة: نجرب نضيف نافذة غير مرئية عشان نتأكد إن الصلاحية شغالة
+    private boolean canDrawOverlayHack(Context context) {
+        try {
+            WindowManager mgr = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            View viewToAdd = new View(context);
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                    0, 0,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                            WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSPARENT);
+            viewToAdd.setLayoutParams(params);
+            mgr.addView(viewToAdd, params);
+            mgr.removeView(viewToAdd);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     private void createNotificationChannel() {
