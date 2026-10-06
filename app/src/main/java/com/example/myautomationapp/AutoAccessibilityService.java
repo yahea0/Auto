@@ -16,9 +16,7 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
-        // لا نحتاج معالجة الأحداث حالياً
-    }
+    public void onAccessibilityEvent(AccessibilityEvent event) {}
 
     @Override
     public void onInterrupt() {
@@ -36,16 +34,14 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * تنفيذ نقرة حقيقية على الشاشة عند إحداثيات (x, y)
+     * تنفيذ نقرة حقيقية على الشاشة
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-        
         Path path = new Path();
         path.moveTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        // نقرة مدتها 50 ميلي ثانية
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
         dispatchGesture(builder.build(), null, null);
     }
@@ -55,7 +51,6 @@ public class AutoAccessibilityService extends AccessibilityService {
      */
     public void swipe(int startX, int startY, int endX, int endY, int durationMs) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-
         Path path = new Path();
         path.moveTo(startX, startY);
         path.lineTo(endX, endY);
@@ -63,5 +58,12 @@ public class AutoAccessibilityService extends AccessibilityService {
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, durationMs));
         dispatchGesture(builder.build(), null, null);
+    }
+
+    /**
+     * تنفيذ زر الرجوع التلقائي
+     */
+    public void pressBack() {
+        performGlobalAction(GLOBAL_ACTION_BACK);
     }
 }
