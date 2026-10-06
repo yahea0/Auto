@@ -24,7 +24,6 @@ public class MainActivity extends Activity {
     private List<Macro> macroList = new ArrayList<>();
     private MacroAdapter adapter;
     private static final int OVERLAY_PERMISSION_REQ_CODE = 1234;
-    private static final int MEDIA_PROJECTION_REQ_CODE = 1001;
     private static final int NOTIFICATION_PERMISSION_REQ_CODE = 1002;
     private Macro pendingMacro;
 
@@ -42,7 +41,6 @@ public class MainActivity extends Activity {
 
         fabAdd.setOnClickListener(v -> showNewMacroDialog());
         
-        // طلب صلاحية الإشعارات مسبقاً (مطلوبة لأندرويد 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQ_CODE);
@@ -57,15 +55,8 @@ public class MainActivity extends Activity {
             startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE);
             pendingMacro = macro;
         } else {
-            requestMediaProjection(macro);
+            showSetupDialog(macro);
         }
-    }
-
-    private void requestMediaProjection(Macro macro) {
-        android.media.projection.MediaProjectionManager projectionManager = 
-                (android.media.projection.MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-        startActivityForResult(projectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQ_CODE);
-        pendingMacro = macro;
     }
 
     @Override
@@ -73,17 +64,10 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         
         if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
-            if (Settings.canDrawOverlays(this)) {
-                if (pendingMacro != null) requestMediaProjection(pendingMacro);
-            } else {
-                Toast.makeText(this, "صلاحية الظهور فوق التطبيقات مطلوبة", Toast.LENGTH_SHORT).show();
-            }
-        } 
-        else if (requestCode == MEDIA_PROJECTION_REQ_CODE) {
-            if (resultCode == RESULT_OK && data != null && pendingMacro != null) {
+            if (Settings.canDrawOverlays(this) && pendingMacro != null) {
                 showSetupDialog(pendingMacro);
             } else {
-                Toast.makeText(this, "تم إلغاء تسجيل الشاشة", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "صلاحية الظهور فوق التطبيقات مطلوبة", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -109,7 +93,7 @@ public class MainActivity extends Activity {
         } else {
             startService(intent);
         }
-        finish();
+        finish(); // نقفل التطبيق الأساسي عشان تظهر النافذة العائمة
     }
 
     private void showNewMacroDialog() {
