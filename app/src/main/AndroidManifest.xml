@@ -17,6 +17,9 @@
 
         <service android:name=".FloatingWindowService" 
                  android:foregroundServiceType="specialUse"
-                 android:exported="false" />
+                 android:exported="false">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" 
+                      android:value="Floating window for automation" />
+        </service>
     </application>
 </manifest>
