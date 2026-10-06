@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <!-- دائرة التصويب -->
+    <FrameLayout
+        android:id="@+id/pickerCircle"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/gold_circle">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center"
+            android:src="@android:drawable/ic_menu_compass"
+            android:tint="#121212" />
+    </FrameLayout>
+
+    <!-- شريط الأزرار -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#1E1E1E"
+        android:padding="5dp"
+        android:layout_marginTop="10dp">
+
+        <ImageButton
+            android:id="@+id/btnCenter"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_mylocation"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#FFD700" />
+
+        <ImageButton
+            android:id="@+id/btnCopy"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_crop"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#FFD700" />
+
+        <ImageButton
+            android:id="@+id/btnCancel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#FF0000" />
+
+        <ImageButton
+            android:id="@+id/btnConfirm"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_edit"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#00FF00" />
+    </LinearLayout>
+</LinearLayout>
