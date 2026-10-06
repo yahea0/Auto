@@ -4,7 +4,10 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -19,17 +22,21 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
     private View floatingView;      // الزر البنفسجي الصغير 42dp
-    private View popupMenuView;     // قائمة مايكروفي المنبثقة الأولى (Manage, Run, Save, More, Exit)
-    private View hudBarView;        // شريط مايكروفي HUD العلوي (Main Job)
+    private View popupMenuView;     // قائمة مايكروفي المنبثقة الأولى
+    private View hudBarView;        // شريط مايكروفي HUD (Main Job)
     
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams popupParams;
@@ -38,6 +45,7 @@ public class FloatingWindowService extends Service {
     private static final String CHANNEL_ID = "AutoServiceChannel";
     private boolean isPopupOpen = false;
     private boolean isHudOpen = false;
+    private BroadcastReceiver coordReceiver;
 
     @Nullable
     @Override
@@ -66,6 +74,22 @@ public class FloatingWindowService extends Service {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
+
+        // استقبال الإحداثيات عند تأكيدها من أداة التصويب الشفافة
+        coordReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int x = intent.getIntExtra("x", 0);
+                int y = intent.getIntExtra("y", 0);
+                Action clickAction = new Action("Click (x, y)", "Click [" + x + ", " + y + "] [C]", x, y);
+                clickAction.setDelayMs(500);
+                GlobalData.actionList.add(clickAction);
+                updateHudActionCards();
+                openHudBar();
+                Toast.makeText(FloatingWindowService.this, "تمت إضافة النقر عند: [" + x + ", " + y + "]", Toast.LENGTH_SHORT).show();
+            }
+        };
+        ContextCompat.registerReceiver(this, coordReceiver, new IntentFilter("COORDINATES_PICKED"), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void safeInitViews() {
@@ -73,7 +97,6 @@ public class FloatingWindowService extends Service {
             initViews();
         } catch (Throwable t) {
             t.printStackTrace();
-            Toast.makeText(this, "تعذر تشغيل النافذة العائمة: " + t.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -86,7 +109,6 @@ public class FloatingWindowService extends Service {
 
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. الزر العائم الصغير
         floatingView = LayoutInflater.from(themedContext).inflate(R.layout.floating_window, null);
         params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -95,14 +117,12 @@ public class FloatingWindowService extends Service {
         params.x = 80;
         params.y = 400;
 
-        // 2. قائمة مايكروفي المنبثقة الأولى
         popupMenuView = LayoutInflater.from(themedContext).inflate(R.layout.macrorify_popup_menu, null);
         popupParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         popupParams.gravity = Gravity.CENTER;
 
-        // 3. شريط مايكروفي HUD العلوي (Main Job)
         hudBarView = LayoutInflater.from(themedContext).inflate(R.layout.menu_layout, null);
         hudParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -113,7 +133,6 @@ public class FloatingWindowService extends Service {
         try {
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
-            e.printStackTrace();
             stopSelf();
             return;
         }
@@ -180,62 +199,48 @@ public class FloatingWindowService extends Service {
 
     private void togglePopupMenu() {
         if (isPopupOpen) {
-            if (popupMenuView.getWindowToken() != null) {
-                windowManager.removeView(popupMenuView);
-            }
+            if (popupMenuView.getWindowToken() != null) windowManager.removeView(popupMenuView);
         } else {
-            if (popupMenuView.getWindowToken() == null) {
-                windowManager.addView(popupMenuView, popupParams);
-            }
+            if (popupMenuView.getWindowToken() == null) windowManager.addView(popupMenuView, popupParams);
         }
         isPopupOpen = !isPopupOpen;
     }
 
     private void setupPopupMenu() {
         View btnManage = popupMenuView.findViewById(R.id.menuManageActions);
-        if (btnManage != null) {
-            btnManage.setOnClickListener(v -> {
-                togglePopupMenu();
-                openHudBar();
-            });
-        }
+        if (btnManage != null) btnManage.setOnClickListener(v -> {
+            togglePopupMenu();
+            openHudBar();
+        });
 
         View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
-        if (btnRun != null) {
-            btnRun.setOnClickListener(v -> {
-                togglePopupMenu();
-                runMacroExecution();
-            });
-        }
+        if (btnRun != null) btnRun.setOnClickListener(v -> {
+            togglePopupMenu();
+            runMacroExecution();
+        });
 
         View btnSave = popupMenuView.findViewById(R.id.menuSave);
-        if (btnSave != null) {
-            btnSave.setOnClickListener(v -> {
-                togglePopupMenu();
-                Toast.makeText(this, "تم حفظ الماكرو بنجاح!", Toast.LENGTH_SHORT).show();
-            });
-        }
+        if (btnSave != null) btnSave.setOnClickListener(v -> {
+            togglePopupMenu();
+            Toast.makeText(this, "تم حفظ الماكرو بنجاح!", Toast.LENGTH_SHORT).show();
+        });
 
         View btnMore = popupMenuView.findViewById(R.id.menuMore);
-        if (btnMore != null) {
-            btnMore.setOnClickListener(v -> {
-                togglePopupMenu();
-                Toast.makeText(this, "Settings & Tools (قريباً)", Toast.LENGTH_SHORT).show();
-            });
-        }
+        if (btnMore != null) btnMore.setOnClickListener(v -> {
+            togglePopupMenu();
+            Toast.makeText(this, "More Settings (قريباً)", Toast.LENGTH_SHORT).show();
+        });
 
         View btnExit = popupMenuView.findViewById(R.id.menuExit);
-        if (btnExit != null) {
-            btnExit.setOnClickListener(v -> {
-                togglePopupMenu();
-                stopSelf();
-            });
-        }
+        if (btnExit != null) btnExit.setOnClickListener(v -> {
+            togglePopupMenu();
+            stopSelf();
+        });
     }
 
     private void openHudBar() {
         if (!isHudOpen && hudBarView.getWindowToken() == null) {
-            updateHudStatus();
+            updateHudActionCards();
             windowManager.addView(hudBarView, hudParams);
             isHudOpen = true;
         }
@@ -248,15 +253,116 @@ public class FloatingWindowService extends Service {
         }
     }
 
-    private void updateHudStatus() {
-        TextView tvStatus = hudBarView.findViewById(R.id.tvHudStatus);
-        if (tvStatus != null) {
-            if (GlobalData.actionList.isEmpty()) {
-                tvStatus.setText("No Actions");
-            } else {
-                tvStatus.setText(GlobalData.actionList.size() + " Actions Ready");
-            }
+    // بناء وتحديث بطاقات الأكشن البنفسجية داخل شريط مايكروفي (صورة 17)
+    private void updateHudActionCards() {
+        LinearLayout container = hudBarView.findViewById(R.id.layoutActionListContainer);
+        if (container == null) return;
+        container.removeAllViews();
+
+        if (GlobalData.actionList.isEmpty()) {
+            TextView tvEmpty = new TextView(this);
+            tvEmpty.setText("No Actions");
+            tvEmpty.setTextColor(android.graphics.Color.GRAY);
+            tvEmpty.setGravity(Gravity.CENTER);
+            tvEmpty.setPadding(0, 24, 0, 24);
+            container.addView(tvEmpty);
+            return;
         }
+
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        LayoutInflater inflater = LayoutInflater.from(themedContext);
+
+        for (int i = 0; i < GlobalData.actionList.size(); i++) {
+            final int index = i;
+            Action action = GlobalData.actionList.get(i);
+            View card = inflater.inflate(R.layout.item_hud_action, container, false);
+
+            TextView tvTitle = card.findViewById(R.id.tvActionTitle);
+            TextView tvSubtitle = card.findViewById(R.id.tvActionSubtitle);
+            TextView tvIndex = card.findViewById(R.id.tvActionIndex);
+            ImageView ivIcon = card.findViewById(R.id.ivActionIcon);
+
+            tvTitle.setText(action.getDetail() != null ? action.getDetail() : action.getType());
+            tvSubtitle.setText("[Delay " + action.getDelayMs() + "ms]");
+            tvIndex.setText(String.valueOf(index + 1));
+
+            // عند الضغط على البطاقة تفتح قائمة الخيارات والتعديل والحذف (صور 21 و 22)
+            card.setOnClickListener(v -> showActionOptionsMenu(action, index));
+
+            container.addView(card);
+        }
+    }
+
+    // نافذة الخيارات والحذف للأكشن (صور مايكروفي 21 و 22)
+    private void showActionOptionsMenu(Action action, int index) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle(action.getType());
+
+        String[] options = {
+                "▶ Test Action (تشغيل هذا الأكشن)",
+                "✏️ Edit Delay (تعديل مدة التأخير)",
+                "🗑️ Delete (حذف الأكشن)",
+                "⎘ Copy (نسخ ومضاعفة)",
+                "🎯 Edit Coordinates (إعادة التصويب)"
+        };
+
+        builder.setItems(options, (dialog, which) -> {
+            if (which == 0) { // Test
+                if (AutoAccessibilityService.instance != null) {
+                    if ("Click (x, y)".equals(action.getType())) {
+                        AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                    } else if ("Press Back".equals(action.getType())) {
+                        AutoAccessibilityService.instance.pressBack();
+                    }
+                }
+            } else if (which == 1) { // Edit Delay
+                showEditDelayDialog(action);
+            } else if (which == 2) { // Delete
+                GlobalData.actionList.remove(index);
+                updateHudActionCards();
+                Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
+            } else if (which == 3) { // Copy
+                GlobalData.actionList.add(index + 1, new Action(action.getType(), action.getDetail(), action.getX(), action.getY()));
+                updateHudActionCards();
+                Toast.makeText(this, "تم نسخ الأكشن!", Toast.LENGTH_SHORT).show();
+            } else if (which == 4) { // Re-pick
+                closeHudBar();
+                Intent intent = new Intent(this, CoordinatePickerService.class);
+                startService(intent);
+            }
+        });
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        dialog.show();
+    }
+
+    private void showEditDelayDialog(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("مدة التأخير (ميلي ثانية)");
+
+        final EditText input = new EditText(themedContext);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(action.getDelayMs()));
+        builder.setView(input);
+
+        builder.setPositiveButton("حفظ", (dialog, which) -> {
+            String val = input.getText().toString();
+            int ms = val.isEmpty() ? 500 : Integer.parseInt(val);
+            action.setDelayMs(ms);
+            updateHudActionCards();
+        });
+        builder.setNegativeButton("إلغاء", null);
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        dialog.show();
     }
 
     private void setupHudButtons() {
@@ -264,22 +370,18 @@ public class FloatingWindowService extends Service {
         if (btnCollapse != null) btnCollapse.setOnClickListener(v -> closeHudBar());
 
         View btnPlay = hudBarView.findViewById(R.id.btnPlayHud);
-        if (btnPlay != null) {
-            btnPlay.setOnClickListener(v -> {
-                closeHudBar();
-                runMacroExecution();
-            });
-        }
+        if (btnPlay != null) btnPlay.setOnClickListener(v -> {
+            closeHudBar();
+            runMacroExecution();
+        });
 
         View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
         if (btnAdd != null) btnAdd.setOnClickListener(v -> showFullActionDialog());
 
         View btnVar = hudBarView.findViewById(R.id.btnVariables);
-        if (btnVar != null) {
-            btnVar.setOnClickListener(v ->
-                    Toast.makeText(this, "Variables & Expressions", Toast.LENGTH_SHORT).show()
-            );
-        }
+        if (btnVar != null) btnVar.setOnClickListener(v ->
+                Toast.makeText(this, "Variables & Expressions", Toast.LENGTH_SHORT).show()
+        );
     }
 
     private void runMacroExecution() {
@@ -293,7 +395,7 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        Toast.makeText(this, "بدء تشغيل الماكرو...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "جاري تشغيل الماكرو...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             for (Action action : GlobalData.actionList) {
@@ -311,6 +413,10 @@ public class FloatingWindowService extends Service {
                         AutoAccessibilityService.instance.openRecents();
                     } else if ("Notification".equals(type)) {
                         AutoAccessibilityService.instance.openNotifications();
+                    } else if ("Quicksetting".equals(type)) {
+                        AutoAccessibilityService.instance.openQuickSettings();
+                    } else if ("Lock Screen".equals(type)) {
+                        AutoAccessibilityService.instance.lockScreen();
                     } else if ("Screenshot".equals(type)) {
                         AutoAccessibilityService.instance.takeScreenshot();
                     }
@@ -327,6 +433,7 @@ public class FloatingWindowService extends Service {
         }).start();
     }
 
+    // ربط كافة أزرار الأكشنات الـ 20
     private void showFullActionDialog() {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
@@ -339,125 +446,67 @@ public class FloatingWindowService extends Service {
         }
 
         // Gesture: Click XY
-        View bClickXY = dialogView.findViewById(R.id.btnClickXY);
-        if (bClickXY != null) bClickXY.setOnClickListener(v -> {
-            dialog.dismiss();
+        setupBtn(dialogView, R.id.btnClickXY, dialog, () -> {
             closeHudBar();
             Intent intent = new Intent(this, CoordinatePickerService.class);
             startService(intent);
         });
 
         // Gesture: Click Image
-        View bClickImg = dialogView.findViewById(R.id.btnClickImage);
-        if (bClickImg != null) bClickImg.setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "مربع قص الصور (الخطوة التالية)", Toast.LENGTH_SHORT).show();
-        });
+        setupBtn(dialogView, R.id.btnClickImage, dialog, () ->
+            Toast.makeText(this, "Click Image (مربع القص)", Toast.LENGTH_SHORT).show()
+        );
 
-        // Gesture: Click Text
-        View bClickTxt = dialogView.findViewById(R.id.btnClickText);
-        if (bClickTxt != null) bClickTxt.setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "Click Text (OCR)", Toast.LENGTH_SHORT).show();
-        });
+        // Gesture: Click Text & Color
+        setupBtn(dialogView, R.id.btnClickText, dialog, () -> addSimpleAction("Click Text", "[OCR Search]"));
+        setupBtn(dialogView, R.id.btnClickColor, dialog, () -> addSimpleAction("Click Color", "[Color Match]"));
+        setupBtn(dialogView, R.id.btnSwipe, dialog, () -> addSimpleAction("Swipe", "Swipe [500, 1200] -> [500, 400]"));
 
-        // Gesture: Swipe
-        View bSwipe = dialogView.findViewById(R.id.btnSwipe);
-        if (bSwipe != null) bSwipe.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action swipe = new Action("Swipe", "سحب للأعلى (500,1200) إلى (500,400)");
-            swipe.setDelayMs(600);
-            GlobalData.actionList.add(swipe);
-            updateHudStatus();
-        });
+        // Job
+        setupBtn(dialogView, R.id.btnRunJob, dialog, () -> addSimpleAction("Run Job", "Run: Main Job"));
+        setupBtn(dialogView, R.id.btnRestartJob, dialog, () -> addSimpleAction("Restart Job", "Restart Current Job"));
+        setupBtn(dialogView, R.id.btnStopJob, dialog, () -> addSimpleAction("Stop Job", "Stop Current Job"));
 
-        // Device: Open App
-        View bOpenApp = dialogView.findViewById(R.id.btnOpenApp);
-        if (bOpenApp != null) bOpenApp.setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "Open App", Toast.LENGTH_SHORT).show();
-        });
+        // Variable
+        setupBtn(dialogView, R.id.btnSetVariable, dialog, () -> addSimpleAction("Set Variable", "x = x + 1"));
 
-        // Device: Press Back
-        View bBack = dialogView.findViewById(R.id.btnPressBack);
-        if (bBack != null) bBack.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action back = new Action("Press Back", "زر رجوع الجهاز");
-            back.setDelayMs(500);
-            GlobalData.actionList.add(back);
-            updateHudStatus();
-        });
+        // Device
+        setupBtn(dialogView, R.id.btnToastMessage, dialog, () -> addSimpleAction("Toast Message", "Show Toast [Hello]"));
+        setupBtn(dialogView, R.id.btnOpenApp, dialog, () -> addSimpleAction("Open App", "Launch Selected App"));
+        setupBtn(dialogView, R.id.btnPressBack, dialog, () -> addSimpleAction("Press Back", "Device Back Key"));
+        setupBtn(dialogView, R.id.btnPressHome, dialog, () -> addSimpleAction("Press Home", "Device Home Key"));
+        setupBtn(dialogView, R.id.btnOpenRecent, dialog, () -> addSimpleAction("Open Recent", "Show Recent Apps"));
+        setupBtn(dialogView, R.id.btnOpenNotification, dialog, () -> addSimpleAction("Notification", "Pull Notification Panel"));
+        setupBtn(dialogView, R.id.btnOpenQuickSettings, dialog, () -> addSimpleAction("Quicksetting", "Open Quick Settings"));
+        setupBtn(dialogView, R.id.btnLockScreen, dialog, () -> addSimpleAction("Lock Screen", "Lock Device Screen"));
+        setupBtn(dialogView, R.id.btnScreenshot, dialog, () -> addSimpleAction("Screenshot", "Take Screen Capture"));
 
-        // Device: Press Home
-        View bHome = dialogView.findViewById(R.id.btnPressHome);
-        if (bHome != null) bHome.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action home = new Action("Press Home", "زر الشاشة الرئيسية");
-            home.setDelayMs(500);
-            GlobalData.actionList.add(home);
-            updateHudStatus();
-        });
-
-        // Device: Open Recent
-        View bRecent = dialogView.findViewById(R.id.btnOpenRecent);
-        if (bRecent != null) bRecent.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action recent = new Action("Open Recent", "التطبيقات الحديثة");
-            recent.setDelayMs(500);
-            GlobalData.actionList.add(recent);
-            updateHudStatus();
-        });
-
-        // Device: Notification
-        View bNotif = dialogView.findViewById(R.id.btnOpenNotification);
-        if (bNotif != null) bNotif.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action notif = new Action("Notification", "سحب شريط الإشعارات");
-            notif.setDelayMs(500);
-            GlobalData.actionList.add(notif);
-            updateHudStatus();
-        });
-
-        // Device: Screenshot
-        View bShot = dialogView.findViewById(R.id.btnScreenshot);
-        if (bShot != null) bShot.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action shot = new Action("Screenshot", "التقاط شاشة");
-            shot.setDelayMs(600);
-            GlobalData.actionList.add(shot);
-            updateHudStatus();
-        });
-
-        // Device: Toast Message
-        View bToast = dialogView.findViewById(R.id.btnToastMessage);
-        if (bToast != null) bToast.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action toastAct = new Action("Toast Message", "رسالة منبثقة");
-            toastAct.setDelayMs(400);
-            GlobalData.actionList.add(toastAct);
-            updateHudStatus();
-        });
-
-        // Macro: Wait
-        View bWait = dialogView.findViewById(R.id.btnWait);
-        if (bWait != null) bWait.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action waitAct = new Action("Wait", "انتظار 1 ثانية");
-            waitAct.setDelayMs(1000);
-            GlobalData.actionList.add(waitAct);
-            updateHudStatus();
-        });
-
-        // Macro: Stop Macro
-        View bStop = dialogView.findViewById(R.id.btnStopMacro);
-        if (bStop != null) bStop.setOnClickListener(v -> {
-            dialog.dismiss();
-            Action stopAct = new Action("Stop Macro", "إيقاف الماكرو");
-            GlobalData.actionList.add(stopAct);
-            updateHudStatus();
-        });
+        // Macro
+        setupBtn(dialogView, R.id.btnEmptyAction, dialog, () -> addSimpleAction("Empty Action", "[No-Op Step]"));
+        setupBtn(dialogView, R.id.btnWait, dialog, () -> addSimpleAction("Wait", "Wait 1000ms"));
+        setupBtn(dialogView, R.id.btnPauseMacro, dialog, () -> addSimpleAction("Pause Macro", "Pause Execution"));
+        setupBtn(dialogView, R.id.btnStopMacro, dialog, () -> addSimpleAction("Stop Macro", "Stop Macro"));
+        setupBtn(dialogView, R.id.btnAddCustom, dialog, () -> addSimpleAction("Custom Action", "User Custom Script"));
 
         dialog.show();
+    }
+
+    private void setupBtn(View parent, int id, AlertDialog dialog, Runnable action) {
+        View v = parent.findViewById(id);
+        if (v != null) {
+            v.setOnClickListener(view -> {
+                dialog.dismiss();
+                action.run();
+            });
+        }
+    }
+
+    private void addSimpleAction(String type, String detail) {
+        Action action = new Action(type, detail);
+        action.setDelayMs(500);
+        GlobalData.actionList.add(action);
+        updateHudActionCards();
+        Toast.makeText(this, "تمت إضافة: " + type, Toast.LENGTH_SHORT).show();
     }
 
     private void createNotificationChannel() {
@@ -481,6 +530,9 @@ public class FloatingWindowService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (coordReceiver != null) {
+            try { unregisterReceiver(coordReceiver); } catch (Exception ignored) {}
+        }
         if (floatingView != null && windowManager != null) {
             try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
         }
