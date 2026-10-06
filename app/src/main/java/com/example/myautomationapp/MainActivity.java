@@ -3,13 +3,17 @@ package com.example.myautomationapp;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -21,6 +25,7 @@ public class MainActivity extends Activity {
     private MacroAdapter adapter;
     private static final int OVERLAY_PERMISSION_REQ_CODE = 1234;
     private static final int MEDIA_PROJECTION_REQ_CODE = 1001;
+    private static final int NOTIFICATION_PERMISSION_REQ_CODE = 1002;
     private Macro pendingMacro;
 
     @Override
@@ -36,6 +41,13 @@ public class MainActivity extends Activity {
         recyclerView.setAdapter(adapter);
 
         fabAdd.setOnClickListener(v -> showNewMacroDialog());
+        
+        // طلب صلاحية الإشعارات مسبقاً (مطلوبة لأندرويد 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQ_CODE);
+            }
+        }
     }
 
     public void checkOverlayPermission(Macro macro) {
@@ -83,20 +95,21 @@ public class MainActivity extends Activity {
         builder.setItems(options, (dialog, which) -> {
             macro.setConfigured(true);
             adapter.notifyDataSetChanged();
-            
-            Intent intent = new Intent(MainActivity.this, FloatingWindowService.class);
-            intent.putExtra("macro_name", macro.getName());
-            
-            // نستخدم startForegroundService لأندرويد 8+
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
-            finish();
+            startFloatingService(macro);
         });
         builder.setNegativeButton("CANCEL", null);
         builder.show();
+    }
+    
+    private void startFloatingService(Macro macro) {
+        Intent intent = new Intent(MainActivity.this, FloatingWindowService.class);
+        intent.putExtra("macro_name", macro.getName());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+        finish();
     }
 
     private void showNewMacroDialog() {
