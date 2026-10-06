@@ -4,7 +4,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
@@ -18,9 +17,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -30,9 +27,8 @@ public class FloatingWindowService extends Service {
     private WindowManager windowManager;
     private View floatingView;
     private WindowManager.LayoutParams params;
-    private boolean isMinimized = false;
-    private boolean isMenuOpen = false;
     private static final String CHANNEL_ID = "AutoServiceChannel";
+    private LinearLayout menuLayout;
 
     @Nullable
     @Override
@@ -66,6 +62,7 @@ public class FloatingWindowService extends Service {
     private void addOverlayView() {
         try {
             floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
+            menuLayout = floatingView.findViewById(R.id.menuLayout);
 
             int layoutType;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,11 +93,12 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        // 1. جعل النافذة قابلة للسحب مع تقييدها داخل الشاشة
-        TextView header = floatingView.findViewById(R.id.headerTitle);
-        header.setOnTouchListener(new View.OnTouchListener() {
+        // منطق السحب والضغط على الدائرة
+        View circleButton = floatingView.findViewById(R.id.circleButton);
+        circleButton.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
+            private boolean isDragging = false;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -110,75 +108,55 @@ public class FloatingWindowService extends Service {
                         initialY = params.y;
                         initialTouchX = event.getRawX();
                         initialTouchY = event.getRawY();
+                        isDragging = false;
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        params.x = initialX + (int) (event.getRawX() - initialTouchX);
-                        params.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        float deltaX = event.getRawX() - initialTouchX;
+                        float deltaY = event.getRawY() - initialTouchY;
                         
-                        // تقييد النافذة داخل حدود الشاشة
-                        DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
-                        int screenWidth = displayMetrics.widthPixels;
-                        int screenHeight = displayMetrics.heightPixels;
-                        
-                        int viewWidth = floatingView.getWidth();
-                        int viewHeight = floatingView.getHeight();
-                        
-                        if (viewWidth == 0 || viewHeight == 0) {
-                            windowManager.updateViewLayout(floatingView, params);
-                            return true;
+                        // إذا تحرك الإصبع أكثر من 10 بكسل، نعتبرها سحبة
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                            isDragging = true;
                         }
-
-                        // الحد الأيسر
-                        if (params.x < 0) params.x = 0;
-                        // الحد الأيمن
-                        if (params.x > screenWidth - viewWidth) params.x = screenWidth - viewWidth;
-                        // الحد العلوي
-                        if (params.y < 0) params.y = 0;
-                        // الحد السفلي
-                        if (params.y > screenHeight - viewHeight) params.y = screenHeight - viewHeight;
                         
-                        windowManager.updateViewLayout(floatingView, params);
+                        if (isDragging) {
+                            params.x = initialX + (int) deltaX;
+                            params.y = initialY + (int) deltaY;
+
+                            // تقييد النافذة داخل حدود الشاشة
+                            DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
+                            int screenWidth = displayMetrics.widthPixels;
+                            int screenHeight = displayMetrics.heightPixels;
+                            int viewWidth = floatingView.getWidth();
+                            int viewHeight = floatingView.getHeight();
+
+                            if (viewWidth > 0 && viewHeight > 0) {
+                                if (params.x < 0) params.x = 0;
+                                if (params.x > screenWidth - viewWidth) params.x = screenWidth - viewWidth;
+                                if (params.y < 0) params.y = 0;
+                                if (params.y > screenHeight - viewHeight) params.y = screenHeight - viewHeight;
+                            }
+                            windowManager.updateViewLayout(floatingView, params);
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        // إذا ما تحرك، نعتبرها ضغطة عادية
+                        if (!isDragging) {
+                            if (menuLayout.getVisibility() == View.VISIBLE) {
+                                menuLayout.setVisibility(View.GONE);
+                            } else {
+                                menuLayout.setVisibility(View.VISIBLE);
+                            }
+                        }
                         return true;
                 }
                 return false;
             }
         });
 
-        // 2. زر التصغير
-        ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
-        btnMinimize.setOnClickListener(v -> {
-            LinearLayout expandedLayout = floatingView.findViewById(R.id.expandedLayout);
-            LinearLayout menuLayout = floatingView.findViewById(R.id.menuLayout);
-            
-            if (isMinimized) {
-                expandedLayout.setVisibility(View.VISIBLE);
-                btnMinimize.setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
-            } else {
-                expandedLayout.setVisibility(View.GONE);
-                menuLayout.setVisibility(View.GONE);
-                btnMinimize.setImageResource(android.R.drawable.ic_menu_add);
-            }
-            isMinimized = !isMinimized;
-            isMenuOpen = false;
-        });
-
-        // 3. زر القائمة (اللي بيطلع الخيارات)
-        ImageButton btnMenu = floatingView.findViewById(R.id.btnMenu);
-        btnMenu.setOnClickListener(v -> {
-            LinearLayout menuLayout = floatingView.findViewById(R.id.menuLayout);
-            if (isMenuOpen) {
-                menuLayout.setVisibility(View.GONE);
-            } else {
-                menuLayout.setVisibility(View.VISIBLE);
-                floatingView.findViewById(R.id.expandedLayout).setVisibility(View.GONE);
-            }
-            isMenuOpen = !isMenuOpen;
-        });
-
-        // 4. أزرار القائمة
+        // أزرار القائمة
         floatingView.findViewById(R.id.menuManage).setOnClickListener(v -> {
             Toast.makeText(this, "Manage Actions (قريباً)", Toast.LENGTH_SHORT).show();
-            // هنا رح نفتح شاشة الأكشنات
         });
         
         floatingView.findViewById(R.id.menuRunTest).setOnClickListener(v -> {
@@ -196,11 +174,6 @@ public class FloatingWindowService extends Service {
         floatingView.findViewById(R.id.menuExit).setOnClickListener(v -> {
             Toast.makeText(this, "Exiting...", Toast.LENGTH_SHORT).show();
             stopSelf();
-        });
-
-        // 5. زر إضافة أكشن
-        floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
-            Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
     }
 
