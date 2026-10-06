@@ -8,7 +8,7 @@
     app:cardElevation="10dp">
 
     <LinearLayout
-        android:layout_width="250dp"
+        android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:background="#FFD700"
-            android:padding="8dp"
+            android:padding="6dp"
             android:gravity="center_vertical">
 
             <TextView
@@ -29,12 +29,20 @@
                 android:text="Main Job"
                 android:textColor="#121212"
                 android:textStyle="bold"
-                android:textSize="16sp" />
+                android:textSize="14sp" />
+
+            <ImageButton
+                android:id="@+id/btnMenu"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@android:drawable/ic_menu_sort_by_size"
+                android:background="@android:color/transparent"
+                android:tint="#121212" />
 
             <ImageButton
                 android:id="@+id/btnMinimize"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:background="@android:color/transparent"
                 android:tint="#121212" />
@@ -46,7 +54,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="8dp"
+            android:visibility="gone">
 
             <TextView
                 android:layout_width="match_parent"
@@ -54,8 +63,8 @@
                 android:text="No Actions"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"/>
+                android:layout_marginTop="5dp"
+                android:layout_marginBottom="5dp"/>
 
             <Button
                 android:id="@+id/btnAddAction"
@@ -66,5 +75,62 @@
                 android:textColor="#121212" />
 
         </LinearLayout>
+
+        <!-- قائمة التحكم (اللي بتطلع لما نضغط على زر القائمة) -->
+        <LinearLayout
+            android:id="@+id/menuLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="5dp"
+            android:visibility="gone"
+            android:background="#1E1E1E">
+
+            <TextView
+                android:id="@+id/menuManage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Manage Actions"
+                android:textColor="#FFD700"
+                android:padding="10dp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/menuRunTest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Run Test"
+                android:textColor="#FFD700"
+                android:padding="10dp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/menuSave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save"
+                android:textColor="#FFD700"
+                android:padding="10dp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/menuMore"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="More"
+                android:textColor="#FFD700"
+                android:padding="10dp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/menuExit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Exit"
+                android:textColor="#FFD700"
+                android:padding="10dp"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>
