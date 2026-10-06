@@ -5,6 +5,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
@@ -38,7 +39,13 @@ public class FloatingWindowService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        startForeground(1, buildNotification());
+        
+        // تمرير نوع الخدمة لأندرويد 14+ عشان ما يتعطل
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(1, buildNotification());
+        }
         
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
