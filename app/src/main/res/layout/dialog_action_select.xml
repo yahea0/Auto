@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#1E1E1E"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Action"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:paddingBottom="10dp"/>
+
+        <!-- Gesture -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Gesture"
+            android:textColor="#FFD700"
+            android:textStyle="bold"
+            android:paddingTop="10dp"
+            android:paddingBottom="5dp"/>
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <Button
+                android:id="@+id/btnClickXY"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Click (x, y)"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+
+            <Button
+                android:id="@+id/btnClickImage"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Click Image"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+            
+            <Button
+                android:id="@+id/btnSwipe"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Swipe (x, y)"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+
+            <Button
+                android:id="@+id/btnWait"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Wait"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+        </GridLayout>
+
+        <!-- Device -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Device"
+            android:textColor="#FFD700"
+            android:textStyle="bold"
+            android:paddingTop="15dp"
+            android:paddingBottom="5dp"/>
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <Button
+                android:id="@+id/btnOpenApp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Open App"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+
+            <Button
+                android:id="@+id/btnPressBack"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:text="Press Back"
+                android:backgroundTint="#B8860B"
+                android:textColor="#FFFFFF"/>
+        </GridLayout>
+
+    </LinearLayout>
+</ScrollView>
