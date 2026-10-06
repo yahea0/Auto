@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -24,6 +25,7 @@ public class MainActivity extends Activity {
     private List<Macro> macroList = new ArrayList<>();
     private MacroAdapter adapter;
     private static final int OVERLAY_PERMISSION_REQ_CODE = 1234;
+    private static final int MEDIA_PROJECTION_REQ_CODE = 1001;
     private static final int NOTIFICATION_PERMISSION_REQ_CODE = 1002;
     private Macro pendingMacro;
 
@@ -41,6 +43,7 @@ public class MainActivity extends Activity {
 
         fabAdd.setOnClickListener(v -> showNewMacroDialog());
         
+        // طلب صلاحية الإشعارات (مهمة لأندرويد 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION_REQ_CODE);
@@ -48,6 +51,7 @@ public class MainActivity extends Activity {
         }
     }
 
+    // 1. طلب صلاحية "الظهور فوق التطبيقات"
     public void checkOverlayPermission(Macro macro) {
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:" + getPackageName()));
@@ -55,17 +59,47 @@ public class MainActivity extends Activity {
         pendingMacro = macro;
     }
 
+    // 2. طلب صلاحية "التقاط الشاشة"
+    private void requestMediaProjection(Macro macro) {
+        MediaProjectionManager projectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        startActivityForResult(projectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQ_CODE);
+        pendingMacro = macro;
+    }
+
+    // 3. معالجة النتائج
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         
         if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
+            // بعد ما نرجع من إعدادات الظهور فوق التطبيقات، نطلب صلاحية التقاط الشاشة
             if (pendingMacro != null) {
-                showSetupDialog(pendingMacro);
+                requestMediaProjection(pendingMacro);
+            }
+        } 
+        else if (requestCode == MEDIA_PROJECTION_REQ_CODE) {
+            // إذا وافق المستخدم على تسجيل الشاشة
+            if (resultCode == RESULT_OK && data != null && pendingMacro != null) {
+                // نحفظ بيانات تسجيل الشاشة عشان نمررها للخدمة لاحقاً
+                Intent serviceIntent = new Intent(MainActivity.this, FloatingWindowService.class);
+                serviceIntent.putExtra("macro_name", pendingMacro.getName());
+                serviceIntent.putExtra("resultCode", resultCode);
+                serviceIntent.putExtra("data", data);
+                
+                // نفتح النافذة العائمة
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+                Toast.makeText(this, "جاري تشغيل النافذة العائمة...", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "يجب الموافقة على تسجيل الشاشة لتشغيل الأتمتة", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
+    // دالة عرض حوار الإعدادات (قوية/عادية)
     private void showSetupDialog(Macro macro) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("Interface");
@@ -73,22 +107,10 @@ public class MainActivity extends Activity {
         builder.setItems(options, (dialog, which) -> {
             macro.setConfigured(true);
             adapter.notifyDataSetChanged();
-            startFloatingService(macro);
+            checkOverlayPermission(macro); // نبدأ تسلسل الصلاحيات
         });
         builder.setNegativeButton("CANCEL", null);
         builder.show();
-    }
-    
-    private void startFloatingService(Macro macro) {
-        Intent intent = new Intent(MainActivity.this, FloatingWindowService.class);
-        intent.putExtra("macro_name", macro.getName());
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
-        }
-        Toast.makeText(this, "جاري تشغيل النافذة العائمة...", Toast.LENGTH_SHORT).show();
-        // شلنا finish() عشان لو صار خطأ يبين
     }
 
     private void showNewMacroDialog() {
