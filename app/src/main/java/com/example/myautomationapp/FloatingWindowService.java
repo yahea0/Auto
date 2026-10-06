@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
@@ -38,15 +39,16 @@ public class FloatingWindowService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel();
         
-        // تمرير نوع الخدمة لأندرويد 14+ عشان ما يتعطل
+        // 1. نبدأ الخدمة الأمامية فوراً عشان النظام ما يقتلها
+        createNotificationChannel();
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         } else {
             startForeground(1, buildNotification());
         }
         
+        // 2. نجرب نضيف النافذة العائمة
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null);
 
@@ -71,11 +73,14 @@ public class FloatingWindowService extends Service {
         try {
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
+            // إذا فشل، نظهر رسالة ونوقف الخدمة بأمان بدل ما نكرش
             e.printStackTrace();
+            Toast.makeText(this, "خطأ: لم يتم تفعيل خيار 'الظهور فوق التطبيقات' بشكل صحيح. يرجى تفعيله من الإعدادات.", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
 
+        // 3. جعل النافذة قابلة للسحب
         TextView header = floatingView.findViewById(R.id.headerTitle);
         header.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -100,6 +105,7 @@ public class FloatingWindowService extends Service {
             }
         });
 
+        // 4. زر التصغير
         ImageButton btnMinimize = floatingView.findViewById(R.id.btnMinimize);
         btnMinimize.setOnClickListener(v -> {
             if (isMinimized) {
@@ -112,8 +118,9 @@ public class FloatingWindowService extends Service {
             isMinimized = !isMinimized;
         });
         
+        // 5. زر إضافة أكشن
         floatingView.findViewById(R.id.btnAddAction).setOnClickListener(v -> {
-            android.widget.Toast.makeText(this, "قائمة الأكشنات (قريباً)", android.widget.Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "قائمة الأكشنات (قريباً)", Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -139,6 +146,12 @@ public class FloatingWindowService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (floatingView != null && windowManager != null) windowManager.removeView(floatingView);
+        if (floatingView != null && windowManager != null) {
+            try {
+                windowManager.removeView(floatingView);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
