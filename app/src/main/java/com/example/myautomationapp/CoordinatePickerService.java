@@ -18,12 +18,12 @@ import androidx.annotation.Nullable;
 
 public class CoordinatePickerService extends Service {
     private WindowManager windowManager;
-    private View controlBoxView;   // صندوق الإحداثيات والأزرار
-    private View circleTargetView; // دائرة التصويب المستقلة الحرة
-    
+    private View controlBoxView;
+    private View circleTargetView;
     private WindowManager.LayoutParams boxParams;
     private WindowManager.LayoutParams circleParams;
     private TextView tvLiveCoords;
+    private int circleSizePx;
 
     @Nullable
     @Override
@@ -35,29 +35,32 @@ public class CoordinatePickerService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
-        
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        circleSizePx = (int) (48 * dm.density);
+
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. إعداد صندوق الإحداثيات في أعلى الشاشة (مستقل)
+        // 1. صندوق الإحداثيات المستقل
         controlBoxView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
         tvLiveCoords = controlBoxView.findViewById(R.id.tvLiveCoords);
         boxParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
-        boxParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        boxParams.y = 100;
+        boxParams.gravity = Gravity.TOP | Gravity.START;
+        boxParams.x = (dm.widthPixels / 2) - (int) (115 * dm.density);
+        boxParams.y = (int) (80 * dm.density);
 
-        // 2. إعداد دائرة التصويب الصغيرة الحرة (46dp) في منتصف الشاشة
+        // 2. دائرة التصويب المحددة بحجم 48dp بالبكسل لتظهر بالكامل
         circleTargetView = LayoutInflater.from(themedContext).inflate(R.layout.picker_circle_layout, null);
         circleParams = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                circleSizePx, circleSizePx,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         circleParams.gravity = Gravity.TOP | Gravity.START;
-        circleParams.x = 500;
-        circleParams.y = 900;
+        circleParams.x = (dm.widthPixels / 2) - (circleSizePx / 2);
+        circleParams.y = (dm.heightPixels / 2) - (circleSizePx / 2);
 
         try {
             windowManager.addView(controlBoxView, boxParams);
@@ -69,17 +72,16 @@ public class CoordinatePickerService extends Service {
 
         updateLiveCoords();
         setupCircleDrag();
+        setupBoxDrag();
         setupBoxButtons();
     }
 
     private int getExactCenterX() {
-        int w = circleTargetView.getWidth() > 0 ? circleTargetView.getWidth() : 120;
-        return circleParams.x + (w / 2);
+        return circleParams.x + (circleSizePx / 2);
     }
 
     private int getExactCenterY() {
-        int h = circleTargetView.getHeight() > 0 ? circleTargetView.getHeight() : 120;
-        return circleParams.y + (h / 2);
+        return circleParams.y + (circleSizePx / 2);
     }
 
     private void updateLiveCoords() {
@@ -88,7 +90,7 @@ public class CoordinatePickerService extends Service {
         }
     }
 
-    // سحب دائرة التصويب بحرية تامة دون أي عوائق
+    // سحب دائرة الهدف بحرية
     private void setupCircleDrag() {
         circleTargetView.setOnTouchListener(new View.OnTouchListener() {
             private int initX, initY;
@@ -109,13 +111,10 @@ public class CoordinatePickerService extends Service {
                         int targetY = initY + (int) (event.getRawY() - touchY);
 
                         DisplayMetrics dm = getResources().getDisplayMetrics();
-                        int cw = circleTargetView.getWidth() > 0 ? circleTargetView.getWidth() : 120;
-                        int ch = circleTargetView.getHeight() > 0 ? circleTargetView.getHeight() : 120;
-
                         if (targetX < 0) targetX = 0;
-                        if (targetX > dm.widthPixels - cw) targetX = dm.widthPixels - cw;
+                        if (targetX > dm.widthPixels - circleSizePx) targetX = dm.widthPixels - circleSizePx;
                         if (targetY < 40) targetY = 40;
-                        if (targetY > dm.heightPixels - ch - 40) targetY = dm.heightPixels - ch - 40;
+                        if (targetY > dm.heightPixels - circleSizePx - 40) targetY = dm.heightPixels - circleSizePx - 40;
 
                         circleParams.x = targetX;
                         circleParams.y = targetY;
@@ -128,8 +127,45 @@ public class CoordinatePickerService extends Service {
         });
     }
 
+    // سحب صندوق الإحداثيات بحرية إلى أي مكان
+    private void setupBoxDrag() {
+        controlBoxView.setOnTouchListener(new View.OnTouchListener() {
+            private int initX, initY;
+            private float touchX, touchY;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initX = boxParams.x;
+                        initY = boxParams.y;
+                        touchX = event.getRawX();
+                        touchY = event.getRawY();
+                        return true;
+
+                    case MotionEvent.ACTION_MOVE:
+                        int targetX = initX + (int) (event.getRawX() - touchX);
+                        int targetY = initY + (int) (event.getRawY() - touchY);
+
+                        DisplayMetrics dm = getResources().getDisplayMetrics();
+                        int bw = controlBoxView.getWidth() > 0 ? controlBoxView.getWidth() : 230;
+
+                        if (targetX < 0) targetX = 0;
+                        if (targetX > dm.widthPixels - bw) targetX = dm.widthPixels - bw;
+                        if (targetY < 40) targetY = 40;
+                        if (targetY > dm.heightPixels - 120) targetY = dm.heightPixels - 120;
+
+                        boxParams.x = targetX;
+                        boxParams.y = targetY;
+                        windowManager.updateViewLayout(controlBoxView, boxParams);
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
     private void setupBoxButtons() {
-        // تأكيد النقطة وإرسالها
         controlBoxView.findViewById(R.id.btnConfirm).setOnClickListener(v -> {
             int cx = getExactCenterX();
             int cy = getExactCenterY();
@@ -142,10 +178,8 @@ public class CoordinatePickerService extends Service {
             stopSelf();
         });
 
-        // إلغاء
         controlBoxView.findViewById(R.id.btnCancel).setOnClickListener(v -> stopSelf());
 
-        // نسخ
         controlBoxView.findViewById(R.id.btnCopy).setOnClickListener(v -> {
             int cx = getExactCenterX();
             int cy = getExactCenterY();
@@ -157,11 +191,10 @@ public class CoordinatePickerService extends Service {
             }
         });
 
-        // إعادة التمركز في منتصف الشاشة
         controlBoxView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
             DisplayMetrics dm = getResources().getDisplayMetrics();
-            circleParams.x = (dm.widthPixels / 2) - (circleTargetView.getWidth() / 2);
-            circleParams.y = (dm.heightPixels / 2) - (circleTargetView.getHeight() / 2);
+            circleParams.x = (dm.widthPixels / 2) - (circleSizePx / 2);
+            circleParams.y = (dm.heightPixels / 2) - (circleSizePx / 2);
             windowManager.updateViewLayout(circleTargetView, circleParams);
             updateLiveCoords();
         });
