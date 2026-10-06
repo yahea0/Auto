@@ -8,9 +8,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
@@ -46,22 +48,27 @@ public class ActionActivity extends AppCompatActivity {
                 return;
             }
 
-            // فحص هل خدمة إمكانية الوصول مفعّلة
             if (!AutoAccessibilityService.isRunning()) {
-                Toast.makeText(this, "يجب تفعيل خدمة إمكانية الوصول للتطبيق للبدء بالنقر!", Toast.LENGTH_LONG).show();
-                Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                startActivity(intent);
+                Toast.makeText(this, "يرجى تفعيل خدمة Auto في إمكانية الوصول أولاً!", Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                 return;
             }
 
             Toast.makeText(this, "جاري تنفيذ الأكشنات تلقائياً...", Toast.LENGTH_SHORT).show();
 
-            // تنفيذ الأكشنات بالترتيب في مسار خلفي لتجنب تجميد الشاشة
             new Thread(() -> {
                 for (Action action : GlobalData.actionList) {
-                    if ("Click (x, y)".equals(action.getType()) && AutoAccessibilityService.instance != null) {
-                        AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                    if (AutoAccessibilityService.instance != null) {
+                        if ("Click (x, y)".equals(action.getType())) {
+                            AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                        } else if ("Press Back".equals(action.getType())) {
+                            AutoAccessibilityService.instance.pressBack();
+                        } else if ("Swipe".equals(action.getType())) {
+                            // سحب تجريبي للأعلى
+                            AutoAccessibilityService.instance.swipe(500, 1200, 500, 400, 400);
+                        }
                     }
+
                     try {
                         Thread.sleep(action.getDelayMs());
                     } catch (InterruptedException e) {
@@ -69,22 +76,22 @@ public class ActionActivity extends AppCompatActivity {
                     }
                 }
                 new Handler(Looper.getMainLooper()).post(() ->
-                        Toast.makeText(ActionActivity.this, "اكتمل تنفيذ جميع الأكشنات بنجاح!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ActionActivity.this, "اكتمل تنفيذ الأكشنات بنجاح!", Toast.LENGTH_SHORT).show()
                 );
             }).start();
         });
 
         btnAddAction.setOnClickListener(v -> showActionSelectionDialog());
 
-        // استقبال الإحداثيات بأمان وتوافق مع كافة أنظمة أندرويد
+        // استقبال الإحداثيات
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 int x = intent.getIntExtra("x", 0);
                 int y = intent.getIntExtra("y", 0);
-                GlobalData.actionList.add(new Action("Click (x, y)", "X: " + x + ", Y: " + y, x, y));
+                GlobalData.actionList.add(new Action("Click (x, y)", "نقر عند X: " + x + " , Y: " + y, x, y));
                 adapter.notifyDataSetChanged();
-                Toast.makeText(ActionActivity.this, "تمت إضافة النقر عند: (" + x + ", " + y + ")", Toast.LENGTH_SHORT).show();
+                Toast.makeText(ActionActivity.this, "تمت إضافة النقر: (" + x + ", " + y + ")", Toast.LENGTH_SHORT).show();
             }
         };
 
@@ -104,25 +111,43 @@ public class ActionActivity extends AppCompatActivity {
 
         AlertDialog dialog = builder.create();
 
+        // 1. خيار النقر عند إحداثيات
         dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
             dialog.dismiss();
             Intent intent = new Intent(ActionActivity.this, CoordinatePickerService.class);
             startService(intent);
         });
 
+        // 2. خيار النقر على صورة (Macrorify Vision)
         dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Click Image (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "ميزة النقر البصري (سنبنيها في الخطوة التالية)", Toast.LENGTH_SHORT).show();
         });
 
+        // 3. خيار السحب (Swipe)
         dialogView.findViewById(R.id.btnSwipe).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Swipe (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
+            Action swipeAction = new Action("Swipe", "سحب للأعلى من (500,1200) إلى (500,400)");
+            swipeAction.setDelayMs(800);
+            GlobalData.actionList.add(swipeAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر السحب", Toast.LENGTH_SHORT).show();
         });
 
+        // 4. خيار الانتظار (Wait)
         dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Wait (جاري بناؤه في المرحلة القادمة)", Toast.LENGTH_SHORT).show();
+            showWaitDurationDialog();
+        });
+
+        // 5. خيار الرجوع (Press Back)
+        dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action backAction = new Action("Press Back", "الضغط على زر رجوع الجهاز");
+            backAction.setDelayMs(500);
+            GlobalData.actionList.add(backAction);
+            adapter.notifyDataSetChanged();
+            Toast.makeText(this, "تمت إضافة أمر الرجوع", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
@@ -130,12 +155,27 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "Open App (قريباً)", Toast.LENGTH_SHORT).show();
         });
 
-        dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "Press Back (قريباً)", Toast.LENGTH_SHORT).show();
-        });
-
         dialog.show();
+    }
+
+    private void showWaitDurationDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("مدة الانتظار (بالثواني)");
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText("1");
+        builder.setView(input);
+
+        builder.setPositiveButton("إضافة", (d, which) -> {
+            String text = input.getText().toString();
+            int seconds = text.isEmpty() ? 1 : Integer.parseInt(text);
+            Action waitAction = new Action("Wait", "انتظار " + seconds + " ثواني");
+            waitAction.setDelayMs(seconds * 1000);
+            GlobalData.actionList.add(waitAction);
+            adapter.notifyDataSetChanged();
+        });
+        builder.setNegativeButton("إلغاء", null);
+        builder.show();
     }
 
     @Override
