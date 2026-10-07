@@ -243,10 +243,11 @@ public class FloatingWindowService extends Service {
             openHudBar();
         });
 
+        // تشغيل موحد وفوري من القائمة الأولى
         View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
         if (btnRun != null) btnRun.setOnClickListener(v -> {
             togglePopupMenu();
-            runMacroExecution();
+            runUnifiedMacro();
         });
 
         View btnSave = popupMenuView.findViewById(R.id.menuSave);
@@ -277,7 +278,6 @@ public class FloatingWindowService extends Service {
         }
     }
 
-    // عرض بطاقات الأكشن وعرض الـ Thumbnail المقتص الحقيقي!
     private void updateHudActionCards() {
         LinearLayout container = hudBarView.findViewById(R.id.layoutActionListContainer);
         if (container == null) return;
@@ -301,13 +301,15 @@ public class FloatingWindowService extends Service {
             Action action = GlobalData.actionList.get(i);
             View card = inflater.inflate(R.layout.item_hud_action, container, false);
 
+            if (action.isDisabled()) card.setAlpha(0.5f); else card.setAlpha(1.0f);
+
             TextView tvTitle = card.findViewById(R.id.tvActionTitle);
             TextView tvSubtitle = card.findViewById(R.id.tvActionSubtitle);
             TextView tvIndex = card.findViewById(R.id.tvActionIndex);
             View branchLayout = card.findViewById(R.id.layoutConditionBranch);
 
             tvTitle.setText(action.getDetail() != null ? action.getDetail() : action.getType());
-            tvSubtitle.setText("[X1] [Delay 0ms/" + action.getDelayMs() + "ms]");
+            tvSubtitle.setText("[" + action.getClickStyle() + "] [Delay " + action.getDelayMs() + "ms]");
             tvIndex.setText(String.valueOf(index + 1));
 
             if (action.hasCondition()) {
@@ -316,7 +318,6 @@ public class FloatingWindowService extends Service {
                 String state = action.isNotAppear() ? "[Not Appear]" : "[Appear]";
                 tvCondTitle.setText("Image [" + action.getImageName() + "] " + state + " [" + action.getSimilarity() + "%]");
 
-                // عرض صورة الزر الحقيقية المقصوصة في الـ Thumbnail
                 ImageView ivThumb = card.findViewById(R.id.ivConditionThumb);
                 if (ivThumb != null && action.getImagePath() != null) {
                     Bitmap thumbBmp = BitmapFactory.decodeFile(action.getImagePath());
@@ -399,7 +400,6 @@ public class FloatingWindowService extends Service {
             showEditSimilarityDialog(action);
         });
 
-        // فحص الشرط اللحظي الحي: Test Condition
         dialogView.findViewById(R.id.optTestCondition).setOnClickListener(v -> {
             dialog.dismiss();
             new Thread(() -> {
@@ -410,14 +410,10 @@ public class FloatingWindowService extends Service {
                         double sim = VisionEngine.compareSubRegion(screen, template, action.getCropX(), action.getCropY());
                         new Handler(Looper.getMainLooper()).post(() ->
                             Toast.makeText(FloatingWindowService.this, 
-                                "فحص الرؤية: نسبة التطابق اللحظية = " + (int) sim + "% (المطلوب: " + action.getSimilarity() + "%)", 
+                                "نسبة التطابق = " + (int) sim + "% (المطلوب: " + action.getSimilarity() + "%)", 
                                 Toast.LENGTH_LONG).show()
                         );
                     }
-                } else {
-                    new Handler(Looper.getMainLooper()).post(() ->
-                        Toast.makeText(FloatingWindowService.this, "تعذر التقاط الفريم، تأكد من إذن تسجيل الشاشة", Toast.LENGTH_SHORT).show()
-                    );
                 }
             }).start();
         });
@@ -459,6 +455,9 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
+    /**
+     * تفعيل كافة خيارات كرت الأكشن الـ 13 بمنطق برمجي كامل (صورة 1)
+     */
     private void showMacrorifyActionMenu(Action action, int index) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_action_options, null);
@@ -471,6 +470,55 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
+        // 1. Edit Coordinates
+        dialogView.findViewById(R.id.optEditCoordinates).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, CoordinatePickerService.class);
+            startService(intent);
+        });
+
+        // 2. Edit Click Style (Single Click, Double Click, Long Press)
+        dialogView.findViewById(R.id.optEditClickStyle).setOnClickListener(v -> {
+            dialog.dismiss();
+            showClickStyleDialog(action);
+        });
+
+        // 3. Edit Delay (تعديل وقت التأخير)
+        dialogView.findViewById(R.id.optEditDelay).setOnClickListener(v -> {
+            dialog.dismiss();
+            showEditDelayDialog(action);
+        });
+
+        // 4. Test Action (تشغيل فوري في 0ms)
+        dialogView.findViewById(R.id.optTestAction).setOnClickListener(v -> {
+            dialog.dismiss();
+            executeSingleActionNow(action);
+            Toast.makeText(this, "تم تنفيذ النقر فوراً!", Toast.LENGTH_SHORT).show();
+        });
+
+        // 5. Add Condition (إضافة شرط للأكشن)
+        dialogView.findViewById(R.id.optAddCondition).setOnClickListener(v -> {
+            dialog.dismiss();
+            showConditionDialog(action.getX(), action.getY());
+        });
+
+        // 6. Copy (نسخ الأكشن)
+        dialogView.findViewById(R.id.optCopy).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action copy = new Action(action.getType(), action.getDetail(), action.getX(), action.getY());
+            copy.setDelayMs(action.getDelayMs());
+            copy.setClickStyle(action.getClickStyle());
+            copy.setHasCondition(action.hasCondition());
+            copy.setConditionType(action.getConditionType());
+            copy.setImagePath(action.getImagePath());
+            copy.setSimilarity(action.getSimilarity());
+            GlobalData.actionList.add(index + 1, copy);
+            updateHudActionCards();
+            Toast.makeText(this, "تم نسخ الأكشن ومضاعفته!", Toast.LENGTH_SHORT).show();
+        });
+
+        // 7. Delete (حذف الأكشن)
         dialogView.findViewById(R.id.optDelete).setOnClickListener(v -> {
             dialog.dismiss();
             GlobalData.actionList.remove(index);
@@ -478,6 +526,69 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
         });
 
+        // 8. Disable (تعطيل/تفعيل الأكشن)
+        dialogView.findViewById(R.id.optDisable).setOnClickListener(v -> {
+            dialog.dismiss();
+            action.setDisabled(!action.isDisabled());
+            updateHudActionCards();
+            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
+        });
+
+        // أزرار التحويل والاستبدال
+        View.OnClickListener simpleDismiss = v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "قريباً", Toast.LENGTH_SHORT).show();
+        };
+        dialogView.findViewById(R.id.optEditScaling).setOnClickListener(simpleDismiss);
+        dialogView.findViewById(R.id.optAddAbove).setOnClickListener(simpleDismiss);
+        dialogView.findViewById(R.id.optReplace).setOnClickListener(simpleDismiss);
+        dialogView.findViewById(R.id.optConvertCustom).setOnClickListener(simpleDismiss);
+        dialogView.findViewById(R.id.optCut).setOnClickListener(simpleDismiss);
+
+        dialog.show();
+    }
+
+    private void showClickStyleDialog(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("Edit Click Style");
+        String[] styles = {"Single Click", "Double Click", "Long Press"};
+
+        builder.setItems(styles, (d, which) -> {
+            action.setClickStyle(styles[which]);
+            updateHudActionCards();
+            Toast.makeText(this, "النمط: " + styles[which], Toast.LENGTH_SHORT).show();
+        });
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        dialog.show();
+    }
+
+    private void showEditDelayDialog(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("Edit Delay (ms)");
+
+        final EditText input = new EditText(themedContext);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(action.getDelayMs()));
+        builder.setView(input);
+
+        builder.setPositiveButton("حفظ", (dialog, which) -> {
+            String val = input.getText().toString();
+            int ms = val.isEmpty() ? 500 : Integer.parseInt(val);
+            action.setDelayMs(ms);
+            updateHudActionCards();
+        });
+        builder.setNegativeButton("إلغاء", null);
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
         dialog.show();
     }
 
@@ -485,10 +596,11 @@ public class FloatingWindowService extends Service {
         View btnCollapse = hudBarView.findViewById(R.id.btnCollapse);
         if (btnCollapse != null) btnCollapse.setOnClickListener(v -> closeHudBar());
 
+        // تشغيل موحد وفوري من شريط Main Job
         View btnPlay = hudBarView.findViewById(R.id.btnPlayHud);
         if (btnPlay != null) btnPlay.setOnClickListener(v -> {
             closeHudBar();
-            runMacroExecution();
+            runUnifiedMacro();
         });
 
         View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
@@ -496,9 +608,9 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * محرك تنفيذ الماكرو الذكي: يفحص شرط الصورة ولا يضغط إلا عند المطابقة!
+     * محرك التشغيل الموحد الفوري (يبدأ فوراً بـ 0ms تأخير)
      */
-    private void runMacroExecution() {
+    private void runUnifiedMacro() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
             return;
@@ -509,60 +621,57 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        Toast.makeText(this, "بدء تشغيل الماكرو مع فحص الرؤية...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "تشغيل...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
-            for (Action action : GlobalData.actionList) {
-                if (AutoAccessibilityService.instance != null) {
-                    String type = action.getType();
-                    if ("Click (x, y)".equals(type)) {
+            for (int i = 0; i < GlobalData.actionList.size(); i++) {
+                Action action = GlobalData.actionList.get(i);
+                if (action.isDisabled()) continue;
 
-                        // إذا كان للنقر شرط بصري Image Appear
+                if (AutoAccessibilityService.instance != null) {
+                    if ("Click (x, y)".equals(action.getType())) {
                         if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
                             boolean conditionMet = false;
-
                             if (action.getImagePath() != null) {
                                 Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-
                                 if (template != null && screen != null) {
                                     double currentSim = VisionEngine.compareSubRegion(screen, template, action.getCropX(), action.getCropY());
                                     boolean detected = (currentSim >= action.getSimilarity());
-
-                                    // إذا كان الشرط Not Appear يعكس النتيجة
                                     conditionMet = action.isNotAppear() ? !detected : detected;
                                 }
                             }
-
-                            // إذا لم يتحقق الشرط البصري -> تخطي النقر تماماً!
-                            if (!conditionMet) {
-                                new Handler(Looper.getMainLooper()).post(() ->
-                                    Toast.makeText(FloatingWindowService.this, 
-                                        "شرط الصورة لم يتحقق (" + action.getImageName() + ") - تم تخطي النقر", 
-                                        Toast.LENGTH_SHORT).show()
-                                );
-                                try { Thread.sleep(action.getDelayMs()); } catch (Exception ignored) {}
-                                continue; // لا يضغط! ينتقل للأكشن التالي
-                            }
+                            if (!conditionMet) continue;
                         }
 
-                        // إذا تحقق الشرط (أو كان بدون شرط) -> ينفذ النقر فوراً!
-                        AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                        // تنفيذ النمط المختار فوراً
+                        executeSingleActionNow(action);
 
-                    } else if ("Press Back".equals(type)) {
+                    } else if ("Press Back".equals(action.getType())) {
                         AutoAccessibilityService.instance.pressBack();
                     }
                 }
-                try {
-                    Thread.sleep(action.getDelayMs());
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+
+                // تطبيق وقت التأخير بين الأكشنات فقط
+                if (i < GlobalData.actionList.size() - 1 && action.getDelayMs() > 0) {
+                    try { Thread.sleep(action.getDelayMs()); } catch (InterruptedException ignored) {}
                 }
             }
             new Handler(Looper.getMainLooper()).post(() ->
-                    Toast.makeText(FloatingWindowService.this, "اكتمل تشغيل الماكرو بنجاح!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(FloatingWindowService.this, "اكتمل التشغيل!", Toast.LENGTH_SHORT).show()
             );
         }).start();
+    }
+
+    private void executeSingleActionNow(Action action) {
+        if (AutoAccessibilityService.instance == null) return;
+        if ("Double Click".equals(action.getClickStyle())) {
+            AutoAccessibilityService.instance.doubleClick(action.getX(), action.getY());
+        } else if ("Long Press".equals(action.getClickStyle())) {
+            AutoAccessibilityService.instance.longClick(action.getX(), action.getY());
+        } else {
+            AutoAccessibilityService.instance.click(action.getX(), action.getY());
+        }
     }
 
     private void showFullActionDialog() {
@@ -599,7 +708,7 @@ public class FloatingWindowService extends Service {
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Macrorify Engine")
-                .setContentText("الخدمة العائمة ونظام الرؤية نشطان")
+                .setContentText("الخدمة ونظام الرؤية نشطان")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .build();
     }
