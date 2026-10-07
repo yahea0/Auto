@@ -44,14 +44,19 @@ public class FloatingWindowService extends Service {
     private View floatingView;
     private View popupMenuView;
     private View hudBarView;
+    private View stopButtonView; // زر الإيقاف الأحمر العائم
     
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams popupParams;
     private WindowManager.LayoutParams hudParams;
+    private WindowManager.LayoutParams stopParams;
     
     private static final String CHANNEL_ID = "AutoServiceChannel";
     private boolean isPopupOpen = false;
     private boolean isHudOpen = false;
+    private boolean isStopButtonVisible = false;
+    private volatile boolean isMacroRunning = false; // التحكم في تكرار الماكرو المستمر
+    
     private BroadcastReceiver coordReceiver;
     private BroadcastReceiver cropReceiver;
     private BroadcastReceiver clickImageReceiver;
@@ -229,6 +234,15 @@ public class FloatingWindowService extends Service {
         hudParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         hudParams.y = 120;
 
+        // تهيئة زر الإيقاف الأحمر STOP
+        stopButtonView = LayoutInflater.from(themedContext).inflate(R.layout.floating_stop_button, null);
+        stopParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType, flags, PixelFormat.TRANSLUCENT);
+        stopParams.gravity = Gravity.BOTTOM | Gravity.START;
+        stopParams.x = 40;
+        stopParams.y = 100;
+
         try {
             windowManager.addView(floatingView, params);
         } catch (Exception e) {
@@ -237,6 +251,7 @@ public class FloatingWindowService extends Service {
         }
 
         setupFloatingDrag();
+        setupStopButton();
         setupPopupMenu();
         setupHudButtons();
     }
@@ -294,6 +309,66 @@ public class FloatingWindowService extends Service {
         });
     }
 
+    private void setupStopButton() {
+        // عند الضغط على زر STOP الأحمر: إيقاف الماكرو فوراً وإعادة ظهور الزر العائم
+        stopButtonView.setOnClickListener(v -> stopMacroExecution());
+
+        // إمكانية سحب زر الإيقاف لأي مكان
+        stopButtonView.setOnTouchListener(new View.OnTouchListener() {
+            private int initX, initY;
+            private float touchX, touchY;
+            private boolean dragging = false;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initX = stopParams.x; initY = stopParams.y;
+                        touchX = event.getRawX(); touchY = event.getRawY();
+                        dragging = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - touchX;
+                        float dy = event.getRawY() - touchY;
+                        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) dragging = true;
+                        if (dragging) {
+                            stopParams.x = initX + (int) dx;
+                            stopParams.y = initY - (int) dy;
+                            windowManager.updateViewLayout(stopButtonView, stopParams);
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (!dragging) {
+                            stopMacroExecution();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void showStopButtonOverlay() {
+        if (!isStopButtonVisible && stopButtonView.getWindowToken() == null) {
+            windowManager.addView(stopButtonView, stopParams);
+            isStopButtonVisible = true;
+        }
+    }
+
+    private void hideStopButtonOverlay() {
+        if (isStopButtonVisible && stopButtonView.getWindowToken() != null) {
+            windowManager.removeView(stopButtonView);
+            isStopButtonVisible = false;
+        }
+    }
+
+    private void stopMacroExecution() {
+        isMacroRunning = false;
+        hideStopButtonOverlay();
+        if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+        Toast.makeText(this, "تم إيقاف الماكرو!", Toast.LENGTH_SHORT).show();
+    }
+
     private void togglePopupMenu() {
         if (isPopupOpen) {
             closePopupMenu();
@@ -320,7 +395,7 @@ public class FloatingWindowService extends Service {
         View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
         if (btnRun != null) btnRun.setOnClickListener(v -> {
             closePopupMenu();
-            runUnifiedMacro();
+            startMacroLoopExecution();
         });
 
         View btnSave = popupMenuView.findViewById(R.id.menuSave);
@@ -730,9 +805,6 @@ public class FloatingWindowService extends Service {
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
-    /**
-     * الدالة الحاسمة: إرجاع مركز الصورة المكتشفة بالضبط (Exact Center)
-     */
     private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         double minThresh = action.getSimilarity();
@@ -745,7 +817,6 @@ public class FloatingWindowService extends Service {
         } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
             p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
         } else {
-            // Captured Location
             double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
             if (sim >= minThresh) {
                 p = new Point(action.getCropX(), action.getCropY());
@@ -1190,7 +1261,7 @@ public class FloatingWindowService extends Service {
         View btnPlay = hudBarView.findViewById(R.id.btnPlayHud);
         if (btnPlay != null) btnPlay.setOnClickListener(v -> {
             closeHudBar();
-            runUnifiedMacro();
+            startMacroLoopExecution();
         });
 
         View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
@@ -1200,7 +1271,10 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
-    private void runUnifiedMacro() {
+    /**
+     * تشغيل الماكرو المستمر في حلقة تكرار (Loop) مع إظهار زر STOP الأحمر العائم
+     */
+    private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
             return;
@@ -1211,77 +1285,103 @@ public class FloatingWindowService extends Service {
             return;
         }
 
+        // إخفاء النوافذ العائمة وإخفاء الزر البنفسجي
         closeHudBar();
         closePopupMenu();
+        if (floatingView != null) floatingView.setVisibility(View.GONE);
 
-        Toast.makeText(this, "تشغيل...", Toast.LENGTH_SHORT).show();
+        // إظهار زر STOP الأحمر العائم بالأسفل
+        showStopButtonOverlay();
+
+        isMacroRunning = true;
+        Toast.makeText(this, "بدء تشغيل الماكرو التلقائي...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
-            for (int i = 0; i < GlobalData.actionList.size(); i++) {
-                Action action = GlobalData.actionList.get(i);
-                if (action.isDisabled()) continue;
+            // حلقة تكرار مستمرة (Loop) لا تنتهي إلا بالضغط على زر STOP الأحمر
+            while (isMacroRunning) {
+                for (int i = 0; i < GlobalData.actionList.size(); i++) {
+                    if (!isMacroRunning) break;
 
-                if (action.getDelayBeforeMs() > 0) {
-                    try { Thread.sleep(action.getDelayBeforeMs()); } catch (InterruptedException ignored) {}
-                }
+                    Action action = GlobalData.actionList.get(i);
+                    if (action.isDisabled()) continue;
 
-                if (AutoAccessibilityService.instance != null) {
-                    String type = action.getType();
+                    if (action.getDelayBeforeMs() > 0) {
+                        try { Thread.sleep(action.getDelayBeforeMs()); } catch (InterruptedException ignored) {}
+                    }
+                    if (!isMacroRunning) break;
 
-                    // 1. أكشن Click Image
-                    if ("Click Image".equals(type)) {
-                        if (action.getImagePath() != null) {
-                            Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
-                            Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-                            if (template != null && screen != null) {
-                                Point matchCenter = findMatchCenterForAction(screen, template, action);
-                                if (matchCenter != null) {
-                                    int clickTargetX = matchCenter.x + action.getOffsetX();
-                                    int clickTargetY = matchCenter.y + action.getOffsetY();
-                                    executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
-                                } else {
-                                    new Handler(Looper.getMainLooper()).post(() ->
-                                        Toast.makeText(FloatingWindowService.this, "تخطي: لم يتم العثور على " + action.getImageName(), Toast.LENGTH_SHORT).show()
-                                    );
-                                }
-                            }
-                        }
-                    } 
-                    // 2. أكشن Click (x, y) مع شرط الصورة
-                    else if ("Click (x, y)".equals(type)) {
-                        if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
-                            boolean conditionMet = false;
+                    if (AutoAccessibilityService.instance != null) {
+                        String type = action.getType();
+
+                        if ("Click Image".equals(type)) {
                             if (action.getImagePath() != null) {
                                 Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (template != null && screen != null) {
                                     Point matchCenter = findMatchCenterForAction(screen, template, action);
-                                    boolean detected = (matchCenter != null);
-                                    conditionMet = action.isNotAppear() ? !detected : detected;
+                                    if (matchCenter != null) {
+                                        int clickTargetX = matchCenter.x + action.getOffsetX();
+                                        int clickTargetY = matchCenter.y + action.getOffsetY();
+                                        executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
+                                    }
                                 }
                             }
-                            if (!conditionMet) continue;
+                        } else if ("Click (x, y)".equals(type)) {
+                            if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
+                                boolean conditionMet = false;
+                                if (action.getImagePath() != null) {
+                                    Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
+                                    Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+                                    if (template != null && screen != null) {
+                                        Point matchCenter = findMatchCenterForAction(screen, template, action);
+                                        boolean detected = (matchCenter != null);
+                                        conditionMet = action.isNotAppear() ? !detected : detected;
+                                    }
+                                }
+                                if (!conditionMet) continue;
+                            }
+
+                            executeSingleActionNow(action);
+
+                        } else if ("Press Back".equals(type)) {
+                            AutoAccessibilityService.instance.pressBack();
+                        } else if ("Press Home".equals(type)) {
+                            AutoAccessibilityService.instance.pressHome();
                         }
+                    }
 
-                        executeSingleActionNow(action);
-
-                    } else if ("Press Back".equals(type)) {
-                        AutoAccessibilityService.instance.pressBack();
-                    } else if ("Press Home".equals(type)) {
-                        AutoAccessibilityService.instance.pressHome();
+                    if (action.getDelayAfterMs() > 0) {
+                        try { Thread.sleep(action.getDelayAfterMs()); } catch (InterruptedException ignored) {}
                     }
                 }
-
-                if (action.getDelayAfterMs() > 0) {
-                    try { Thread.sleep(action.getDelayAfterMs()); } catch (InterruptedException ignored) {}
-                }
             }
-            new Handler(Looper.getMainLooper()).post(() ->
-                    Toast.makeText(FloatingWindowService.this, "اكتمل التشغيل!", Toast.LENGTH_SHORT).show()
-            );
         }).start();
+    }
+
+    private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
+        String mode = action.getDetectLocationMode();
+        double minThresh = action.getSimilarity();
+        int tw = template.getWidth();
+        int th = template.getHeight();
+
+        Point p = null;
+        if ("FULL_SCREEN".equals(mode)) {
+            p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
+        } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
+            p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
+        } else {
+            double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+            if (sim >= minThresh) {
+                p = new Point(action.getCropX(), action.getCropY());
+            }
+        }
+
+        if (p != null) {
+            return new Point(p.x + (tw / 2), p.y + (th / 2));
+        }
+        return null;
     }
 
     private void executeSingleActionNow(Action action) {
@@ -1345,6 +1445,7 @@ public class FloatingWindowService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        isMacroRunning = false;
         if (coordReceiver != null) try { unregisterReceiver(coordReceiver); } catch (Exception ignored) {}
         if (cropReceiver != null) try { unregisterReceiver(cropReceiver); } catch (Exception ignored) {}
         if (clickImageReceiver != null) try { unregisterReceiver(clickImageReceiver); } catch (Exception ignored) {}
@@ -1352,5 +1453,6 @@ public class FloatingWindowService extends Service {
         if (floatingView != null && windowManager != null) try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
         if (popupMenuView != null && windowManager != null) try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
         if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
+        if (stopButtonView != null && windowManager != null && isStopButtonVisible) try { windowManager.removeView(stopButtonView); } catch (Exception ignored) {}
     }
 }
