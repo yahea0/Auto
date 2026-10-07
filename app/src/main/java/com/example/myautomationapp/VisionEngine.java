@@ -5,10 +5,9 @@ import android.graphics.Bitmap;
 public class VisionEngine {
 
     /**
-     * مقارنة سريعة ودقيقة جداً للمنطقة المحددة (تستغرق أقل من 2 ميلي ثانية)
-     * تعيد نسبة التطابق من 0 إلى 100%
+     * مقارنة بكسلية رياضية صارمة ومطلقة (تدعم من 0% حتى 100% بالضبط)
      */
-    public static double compareSubRegion(Bitmap screen, Bitmap template, int cropX, int cropY) {
+    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
         if (screen == null || template == null) return 0.0;
 
         int tw = template.getWidth();
@@ -23,11 +22,10 @@ public class VisionEngine {
         screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, th);
         template.getPixels(templatePixels, 0, tw, 0, 0, tw, th);
 
-        int matchedCount = 0;
-        int totalSampled = 0;
+        double totalDifference = 0.0;
+        int totalPixels = screenPixels.length;
 
-        // عينات نقطية سريعة لحساب التطابق اللوني
-        for (int i = 0; i < screenPixels.length; i += 2) {
+        for (int i = 0; i < totalPixels; i++) {
             int sc = screenPixels[i];
             int tc = templatePixels[i];
 
@@ -35,14 +33,13 @@ public class VisionEngine {
             int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
             int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-            // تسامح لوني ذكي (Tolerance) لمراعاة ظلال الشاشة
-            if (diffR + diffG + diffB < 65) {
-                matchedCount++;
-            }
-            totalSampled++;
+            // حساب نسبة الخطأ في كل بكسل من 0.0 إلى 1.0
+            totalDifference += (diffR + diffG + diffB) / (3.0 * 255.0);
         }
 
-        if (totalSampled == 0) return 0.0;
-        return ((double) matchedCount / totalSampled) * 100.0;
+        double averageDifference = totalDifference / totalPixels;
+        double similarityPercentage = (1.0 - averageDifference) * 100.0;
+
+        return Math.max(0.0, Math.min(100.0, similarityPercentage));
     }
 }
