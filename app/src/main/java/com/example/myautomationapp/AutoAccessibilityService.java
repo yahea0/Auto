@@ -34,18 +34,45 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * تنفيذ نقرة فورية ومحكمة في النقطة الفيزيائية المحددة بالضبط
+     * نقرة عادية فورية في المركز
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
-
         Path path = new Path();
         path.moveTo(x, y);
         path.lineTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        // 50ms نبضة نقر سريعة ومثالية تضغط على أي زر دون أن يعتبرها النظام سحباً
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 45));
+        dispatchGesture(builder.build(), null, null);
+    }
+
+    /**
+     * نقرة مزدوجة سريعة Double Click
+     */
+    public void doubleClick(int x, int y) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+        Path path = new Path();
+        path.moveTo(x, y);
+        path.lineTo(x, y);
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 40));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 90, 40));
+        dispatchGesture(builder.build(), null, null);
+    }
+
+    /**
+     * ضغطة مطولة Long Press
+     */
+    public void longClick(int x, int y) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+        Path path = new Path();
+        path.moveTo(x, y);
+        path.lineTo(x, y);
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 500));
         dispatchGesture(builder.build(), null, null);
     }
 
