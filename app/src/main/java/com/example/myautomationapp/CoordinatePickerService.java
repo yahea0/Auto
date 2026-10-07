@@ -41,9 +41,13 @@ public class CoordinatePickerService extends Service {
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
-        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. صندوق الإحداثيات المستقل
+        // تفعيل FLAG_LAYOUT_IN_SCREEN لضمان توحيد الصفر المطلق للشاشة الفيزيائية مع نظام النقر
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE 
+                  | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN 
+                  | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+
+        // 1. صندوق الإحداثيات
         controlBoxView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
         tvLiveCoords = controlBoxView.findViewById(R.id.tvLiveCoords);
         boxParams = new WindowManager.LayoutParams(
@@ -51,9 +55,9 @@ public class CoordinatePickerService extends Service {
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         boxParams.gravity = Gravity.TOP | Gravity.START;
         boxParams.x = (dm.widthPixels / 2) - (int) (115 * dm.density);
-        boxParams.y = (int) (80 * dm.density);
+        boxParams.y = (int) (100 * dm.density);
 
-        // 2. دائرة التصويب المحددة بحجم 48dp بالبكسل لتظهر بالكامل
+        // 2. دائرة التصويب الشفافة
         circleTargetView = LayoutInflater.from(themedContext).inflate(R.layout.picker_circle_layout, null);
         circleParams = new WindowManager.LayoutParams(
                 circleSizePx, circleSizePx,
@@ -70,18 +74,27 @@ public class CoordinatePickerService extends Service {
             return;
         }
 
-        updateLiveCoords();
+        circleTargetView.post(this::updateLiveCoords);
         setupCircleDrag();
         setupBoxDrag();
         setupBoxButtons();
     }
 
+    // حساب المركز الفيزيائي الدقيق للنقطة على زجاج الشاشة
     private int getExactCenterX() {
-        return circleParams.x + (circleSizePx / 2);
+        if (circleTargetView == null) return circleParams.x + (circleSizePx / 2);
+        int[] loc = new int[2];
+        circleTargetView.getLocationOnScreen(loc);
+        int w = circleTargetView.getWidth() > 0 ? circleTargetView.getWidth() : circleSizePx;
+        return loc[0] + (w / 2);
     }
 
     private int getExactCenterY() {
-        return circleParams.y + (circleSizePx / 2);
+        if (circleTargetView == null) return circleParams.y + (circleSizePx / 2);
+        int[] loc = new int[2];
+        circleTargetView.getLocationOnScreen(loc);
+        int h = circleTargetView.getHeight() > 0 ? circleTargetView.getHeight() : circleSizePx;
+        return loc[1] + (h / 2);
     }
 
     private void updateLiveCoords() {
@@ -90,7 +103,6 @@ public class CoordinatePickerService extends Service {
         }
     }
 
-    // سحب دائرة الهدف بحرية
     private void setupCircleDrag() {
         circleTargetView.setOnTouchListener(new View.OnTouchListener() {
             private int initX, initY;
@@ -113,13 +125,13 @@ public class CoordinatePickerService extends Service {
                         DisplayMetrics dm = getResources().getDisplayMetrics();
                         if (targetX < 0) targetX = 0;
                         if (targetX > dm.widthPixels - circleSizePx) targetX = dm.widthPixels - circleSizePx;
-                        if (targetY < 40) targetY = 40;
-                        if (targetY > dm.heightPixels - circleSizePx - 40) targetY = dm.heightPixels - circleSizePx - 40;
+                        if (targetY < 0) targetY = 0;
+                        if (targetY > dm.heightPixels - circleSizePx) targetY = dm.heightPixels - circleSizePx;
 
                         circleParams.x = targetX;
                         circleParams.y = targetY;
                         windowManager.updateViewLayout(circleTargetView, circleParams);
-                        updateLiveCoords();
+                        circleTargetView.post(CoordinatePickerService.this::updateLiveCoords);
                         return true;
                 }
                 return false;
@@ -127,7 +139,6 @@ public class CoordinatePickerService extends Service {
         });
     }
 
-    // سحب صندوق الإحداثيات بحرية إلى أي مكان
     private void setupBoxDrag() {
         controlBoxView.setOnTouchListener(new View.OnTouchListener() {
             private int initX, initY;
@@ -149,7 +160,6 @@ public class CoordinatePickerService extends Service {
 
                         DisplayMetrics dm = getResources().getDisplayMetrics();
                         int bw = controlBoxView.getWidth() > 0 ? controlBoxView.getWidth() : 230;
-
                         if (targetX < 0) targetX = 0;
                         if (targetX > dm.widthPixels - bw) targetX = dm.widthPixels - bw;
                         if (targetY < 40) targetY = 40;
@@ -196,7 +206,7 @@ public class CoordinatePickerService extends Service {
             circleParams.x = (dm.widthPixels / 2) - (circleSizePx / 2);
             circleParams.y = (dm.heightPixels / 2) - (circleSizePx / 2);
             windowManager.updateViewLayout(circleTargetView, circleParams);
-            updateLiveCoords();
+            circleTargetView.post(CoordinatePickerService.this::updateLiveCoords);
         });
     }
 
