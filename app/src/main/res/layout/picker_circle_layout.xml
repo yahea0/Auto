@@ -5,10 +5,11 @@
     android:layout_height="48dp"
     android:background="@drawable/target_ring">
 
+    <!-- نقطة المركز الدائرية الناعمة (مطابقة لمايكروفي) -->
     <View
-        android:layout_width="6dp"
-        android:layout_height="6dp"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
         android:layout_gravity="center"
-        android:background="#00E5FF" />
+        android:background="@drawable/target_center_dot" />
 
 </FrameLayout>
