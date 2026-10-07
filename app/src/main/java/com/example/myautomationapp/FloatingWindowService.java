@@ -44,7 +44,7 @@ public class FloatingWindowService extends Service {
     private View floatingView;
     private View popupMenuView;
     private View hudBarView;
-    private View stopButtonView; // زر الإيقاف الأحمر العائم
+    private View stopButtonView;
     
     private WindowManager.LayoutParams params;
     private WindowManager.LayoutParams popupParams;
@@ -55,7 +55,7 @@ public class FloatingWindowService extends Service {
     private boolean isPopupOpen = false;
     private boolean isHudOpen = false;
     private boolean isStopButtonVisible = false;
-    private volatile boolean isMacroRunning = false; // التحكم في تكرار الماكرو المستمر
+    private volatile boolean isMacroRunning = false;
     
     private BroadcastReceiver coordReceiver;
     private BroadcastReceiver cropReceiver;
@@ -234,7 +234,6 @@ public class FloatingWindowService extends Service {
         hudParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         hudParams.y = 120;
 
-        // تهيئة زر الإيقاف الأحمر STOP
         stopButtonView = LayoutInflater.from(themedContext).inflate(R.layout.floating_stop_button, null);
         stopParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -310,10 +309,8 @@ public class FloatingWindowService extends Service {
     }
 
     private void setupStopButton() {
-        // عند الضغط على زر STOP الأحمر: إيقاف الماكرو فوراً وإعادة ظهور الزر العائم
         stopButtonView.setOnClickListener(v -> stopMacroExecution());
 
-        // إمكانية سحب زر الإيقاف لأي مكان
         stopButtonView.setOnTouchListener(new View.OnTouchListener() {
             private int initX, initY;
             private float touchX, touchY;
@@ -543,9 +540,6 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
-    /**
-     * نافذة Detect Location مع إصلاح منطق RadioButton الحصري تماماً
-     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -575,7 +569,6 @@ public class FloatingWindowService extends Service {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
 
-        // مستمعات حصرية ومتبادلة تضمن إلغاء الخيارات الأخرى فور الضغط على الدائرة أو الصف
         View.OnClickListener selectCaptured = v -> {
             rbCaptured.setChecked(true);
             rbCustom.setChecked(false);
@@ -805,6 +798,9 @@ public class FloatingWindowService extends Service {
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
+    /**
+     * الدالة الوحيدة لحساب مركز الصورة المكتشفة بدقة متناهية وبدون أي تكرار
+     */
     private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         double minThresh = action.getSimilarity();
@@ -1271,9 +1267,6 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
-    /**
-     * تشغيل الماكرو المستمر في حلقة تكرار (Loop) مع إظهار زر STOP الأحمر العائم
-     */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -1285,12 +1278,10 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        // إخفاء النوافذ العائمة وإخفاء الزر البنفسجي
         closeHudBar();
         closePopupMenu();
         if (floatingView != null) floatingView.setVisibility(View.GONE);
 
-        // إظهار زر STOP الأحمر العائم بالأسفل
         showStopButtonOverlay();
 
         isMacroRunning = true;
@@ -1299,7 +1290,6 @@ public class FloatingWindowService extends Service {
         new Thread(() -> {
             try { Thread.sleep(120); } catch (InterruptedException ignored) {}
 
-            // حلقة تكرار مستمرة (Loop) لا تنتهي إلا بالضغط على زر STOP الأحمر
             while (isMacroRunning) {
                 for (int i = 0; i < GlobalData.actionList.size(); i++) {
                     if (!isMacroRunning) break;
@@ -1358,30 +1348,6 @@ public class FloatingWindowService extends Service {
                 }
             }
         }).start();
-    }
-
-    private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
-        String mode = action.getDetectLocationMode();
-        double minThresh = action.getSimilarity();
-        int tw = template.getWidth();
-        int th = template.getHeight();
-
-        Point p = null;
-        if ("FULL_SCREEN".equals(mode)) {
-            p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
-        } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
-        } else {
-            double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
-            if (sim >= minThresh) {
-                p = new Point(action.getCropX(), action.getCropY());
-            }
-        }
-
-        if (p != null) {
-            return new Point(p.x + (tw / 2), p.y + (th / 2));
-        }
-        return null;
     }
 
     private void executeSingleActionNow(Action action) {
