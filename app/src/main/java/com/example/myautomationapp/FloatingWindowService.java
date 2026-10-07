@@ -113,13 +113,12 @@ public class FloatingWindowService extends Service {
                 action.setConditionType("Image Appear");
                 action.setImageName("img_" + (GlobalData.actionList.size() + 1));
                 action.setImagePath(imagePath);
-                action.setSimilarity(70);
+                action.setSimilarity(100);
                 action.setCropBounds(cropX, cropY, cropW, cropH);
 
                 GlobalData.actionList.add(action);
                 updateHudActionCards();
                 openHudBar();
-                Toast.makeText(FloatingWindowService.this, "تم حفظ الصورة واقترانها بالشرط!", Toast.LENGTH_SHORT).show();
             }
         };
         ContextCompat.registerReceiver(this, cropReceiver, new IntentFilter("IMAGE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -372,7 +371,6 @@ public class FloatingWindowService extends Service {
             GlobalData.actionList.add(clickAction);
             updateHudActionCards();
             openHudBar();
-            Toast.makeText(this, "تمت إضافة النقر: [No Condition]", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.btnImageAppear).setOnClickListener(v -> {
@@ -387,9 +385,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * فحص شرط الصورة الفائق وعرض نافذة الذكاء الاصطناعي مع سلسلة النسب المتاحة بنجاح
-     */
     private void showConditionOptionsMenu(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_condition_options, null);
@@ -408,7 +403,6 @@ public class FloatingWindowService extends Service {
             dialog.dismiss();
             action.setNotAppear(!action.isNotAppear());
             updateHudActionCards();
-            Toast.makeText(this, "تم تغيير حالة الشرط!", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.optEditSimilarity).setOnClickListener(v -> {
@@ -416,7 +410,6 @@ public class FloatingWindowService extends Service {
             showEditSimilarityDialog(action);
         });
 
-        // Test Condition مع النافذة الذكية الفخمة وقائمة النسب المتاحة
         dialogView.findViewById(R.id.optTestCondition).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -438,7 +431,7 @@ public class FloatingWindowService extends Service {
                             showAiResultProDialog(action, exactSim, recommended, availableRates);
                         }
                     } else {
-                        Toast.makeText(FloatingWindowService.this, "تعذر التقاط الشاشة!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(FloatingWindowService.this, "تأكد من فتح شاشة اللعبة الحالية", Toast.LENGTH_SHORT).show();
                     }
                 });
             }).start();
@@ -448,15 +441,11 @@ public class FloatingWindowService extends Service {
             dialog.dismiss();
             action.setHasCondition(false);
             updateHudActionCards();
-            Toast.makeText(this, "تم حذف الشرط!", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
     }
 
-    /**
-     * نافذة فحص الذكاء الاصطناعي الفخمة مع بطاقات التحليل وسلسلة النسب المتاحة
-     */
     private void showAiResultProDialog(Action action, double exactSim, int recommendedSim, String availableRates) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_ai_test_result, null);
@@ -496,7 +485,6 @@ public class FloatingWindowService extends Service {
             dialog.dismiss();
             action.setSimilarity(recommendedSim);
             updateHudActionCards();
-            Toast.makeText(this, "تم تحديث النسبة بنجاح إلى: " + recommendedSim + "%", Toast.LENGTH_SHORT).show();
         });
 
         btnClose.setOnClickListener(v -> dialog.dismiss());
@@ -577,7 +565,6 @@ public class FloatingWindowService extends Service {
         dialogView.findViewById(R.id.optTestAction).setOnClickListener(v -> {
             dialog.dismiss();
             executeSingleActionNow(action);
-            Toast.makeText(this, "تم تنفيذ النقر فوراً!", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.optAddCondition).setOnClickListener(v -> {
@@ -596,27 +583,21 @@ public class FloatingWindowService extends Service {
             copy.setSimilarity(action.getSimilarity());
             GlobalData.actionList.add(index + 1, copy);
             updateHudActionCards();
-            Toast.makeText(this, "تم نسخ الأكشن!", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.optDelete).setOnClickListener(v -> {
             dialog.dismiss();
             GlobalData.actionList.remove(index);
             updateHudActionCards();
-            Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.optDisable).setOnClickListener(v -> {
             dialog.dismiss();
             action.setDisabled(!action.isDisabled());
             updateHudActionCards();
-            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
         });
 
-        View.OnClickListener simpleDismiss = v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "قريباً", Toast.LENGTH_SHORT).show();
-        };
+        View.OnClickListener simpleDismiss = v -> dialog.dismiss();
         dialogView.findViewById(R.id.optEditScaling).setOnClickListener(simpleDismiss);
         dialogView.findViewById(R.id.optAddAbove).setOnClickListener(simpleDismiss);
         dialogView.findViewById(R.id.optReplace).setOnClickListener(simpleDismiss);
@@ -635,7 +616,6 @@ public class FloatingWindowService extends Service {
         builder.setItems(styles, (d, which) -> {
             action.setClickStyle(styles[which]);
             updateHudActionCards();
-            Toast.makeText(this, "النمط: " + styles[which], Toast.LENGTH_SHORT).show();
         });
 
         AlertDialog dialog = builder.create();
@@ -688,23 +668,17 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو مع خوارزمية الرؤية الفائقة
+     * تشغيل صامت وسريع وفوري بدون أي رسائل Toast منبثقة تشوّه فحص الشاشة!
      */
     private void runUnifiedMacro() {
-        if (GlobalData.actionList.isEmpty()) {
-            Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (GlobalData.actionList.isEmpty()) return;
         if (!AutoAccessibilityService.isRunning()) {
-            Toast.makeText(this, "يرجى تفعيل خدمة إمكانية الوصول أولاً!", Toast.LENGTH_SHORT).show();
             startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             return;
         }
 
         closeHudBar();
         closePopupMenu();
-
-        Toast.makeText(this, "تشغيل...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             try { Thread.sleep(120); } catch (InterruptedException ignored) {}
@@ -742,9 +716,6 @@ public class FloatingWindowService extends Service {
                     try { Thread.sleep(action.getDelayMs()); } catch (InterruptedException ignored) {}
                 }
             }
-            new Handler(Looper.getMainLooper()).post(() ->
-                    Toast.makeText(FloatingWindowService.this, "اكتمل التشغيل!", Toast.LENGTH_SHORT).show()
-            );
         }).start();
     }
 
@@ -793,7 +764,7 @@ public class FloatingWindowService extends Service {
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Macrorify AI Engine")
-                .setContentText("الخدمة ونظام الرؤية الفائقة نشطان")
+                .setContentText("الخدمة ونظام الرؤية الذكي نشطان")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .build();
     }
