@@ -19,6 +19,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.UUID;
 
 public class ImageCropPickerService extends Service {
     private WindowManager windowManager;
@@ -28,7 +29,8 @@ public class ImageCropPickerService extends Service {
     private WindowManager.LayoutParams frameParams;
     private TextView tvCropCoords, tvCropDimensions;
     private int targetClickX, targetClickY;
-    private boolean isStandaloneClickImage = false; // هل القص لأكشن Click Image مستقل؟
+    private boolean isStandaloneClickImage = false;
+    private boolean isCustomRegionPicker = false; // هل المستطيل لتحديد منطقة بحث مخصصة؟
 
     @Nullable
     @Override
@@ -40,6 +42,7 @@ public class ImageCropPickerService extends Service {
             targetClickX = intent.getIntExtra("target_x", 500);
             targetClickY = intent.getIntExtra("target_y", 1000);
             isStandaloneClickImage = intent.getBooleanExtra("is_click_image", false);
+            isCustomRegionPicker = intent.getBooleanExtra("is_custom_region", false);
         }
         return START_NOT_STICKY;
     }
@@ -111,7 +114,8 @@ public class ImageCropPickerService extends Service {
                         initX = frameParams.x; initY = frameParams.y;
                         initW = frameParams.width; initH = frameParams.height;
                         touchX = event.getRawX(); touchY = event.getRawY();
-                        isResizing = (event.getX() > frameParams.width - 90 && event.getY() > frameParams.height - 90);
+
+                        isResizing = (event.getX() > frameParams.width - 70 && event.getY() > frameParams.height - 70);
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
@@ -119,8 +123,11 @@ public class ImageCropPickerService extends Service {
                         float dy = event.getRawY() - touchY;
 
                         if (isResizing) {
-                            int newW = Math.max((int) (50 * getResources().getDisplayMetrics().density), initW + (int) dx);
-                            int newH = Math.max((int) (35 * getResources().getDisplayMetrics().density), initH + (int) dy);
+                            // السماح بالتصغير لأقصى حد ممكن (حتى 15 بكسل لأصغر الأزرار)
+                            DisplayMetrics dm = getResources().getDisplayMetrics();
+                            int minSize = (int) (12 * dm.density);
+                            int newW = Math.max(minSize, initW + (int) dx);
+                            int newH = Math.max(minSize, initH + (int) dy);
                             frameParams.width = newW;
                             frameParams.height = newH;
                         } else {
@@ -158,8 +165,25 @@ public class ImageCropPickerService extends Service {
             }
         });
 
-        controlBoxView.findViewById(R.id.btnCropConfirm).setOnClickListener(v -> captureAndSaveTemplate());
+        controlBoxView.findViewById(R.id.btnCropConfirm).setOnClickListener(v -> handleConfirmAction());
         controlBoxView.findViewById(R.id.btnCropCancel).setOnClickListener(v -> stopSelf());
+    }
+
+    private void handleConfirmAction() {
+        if (isCustomRegionPicker) {
+            // إرسال أبعاد المنطقة المخصصة المحددة
+            Intent intent = new Intent("CUSTOM_REGION_SELECTED");
+            intent.setPackage(getPackageName());
+            intent.putExtra("region_x", frameParams.x);
+            intent.putExtra("region_y", frameParams.y);
+            intent.putExtra("region_w", frameParams.width);
+            intent.putExtra("region_h", frameParams.height);
+            sendBroadcast(intent);
+            stopSelf();
+        } else {
+            // التقاط وقص صورة جديدة نظيفة
+            captureAndSaveTemplate();
+        }
     }
 
     private void captureAndSaveTemplate() {
@@ -176,9 +200,11 @@ public class ImageCropPickerService extends Service {
                     int cw = Math.min(frameParams.width, screen.getWidth() - cx);
                     int ch = Math.min(frameParams.height, screen.getHeight() - cy);
 
-                    if (cw > 10 && ch > 10) {
+                    if (cw > 5 && ch > 5) {
                         Bitmap cropped = Bitmap.createBitmap(screen, cx, cy, cw, ch);
-                        File file = new File(getFilesDir(), "img_" + System.currentTimeMillis() + ".png");
+                        // اسم ملف فريد تماماً لمنع تعليق نفس الصورة القديمة
+                        String uniqueName = "img_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5) + ".png";
+                        File file = new File(getFilesDir(), uniqueName);
                         FileOutputStream fos = new FileOutputStream(file);
                         cropped.compress(Bitmap.CompressFormat.PNG, 100, fos);
                         fos.close();
@@ -201,7 +227,7 @@ public class ImageCropPickerService extends Service {
             intent.putExtra("image_path", savedPath);
             sendBroadcast(intent);
             stopSelf();
-        }, 80);
+        }, 120);
     }
 
     @Override
