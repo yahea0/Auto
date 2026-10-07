@@ -10,7 +10,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxHeight="460dp">
+        android:maxHeight="480dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -304,6 +304,29 @@
                     android:layout_height="22dp"
                     android:src="@android:drawable/ic_menu_delete"
                     app:tint="#FF5252" />
+            </LinearLayout>
+
+            <!-- 14. Disable (المطلوب في صورة 1) -->
+            <LinearLayout
+                android:id="@+id/optImgDisable"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+                <TextView
+                    android:id="@+id/tvImgDisableText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Disable"
+                    android:textColor="#AAAAAA"
+                    android:textSize="15sp" />
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="#AAAAAA" />
             </LinearLayout>
 
         </LinearLayout>
