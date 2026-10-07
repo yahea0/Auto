@@ -1,11 +1,18 @@
 package com.example.myautomationapp;
 
-public class Action {
+public class Action implements Cloneable {
     private String type;
     private String detail;
     private int x;
     private int y;
-    private int delayMs = 500;
+    
+    // أوقات التأخير قبل وبعد (Macrorify Standard)
+    private int delayBeforeMs = 0;
+    private int delayAfterMs = 500;
+    
+    // خوارزمية التحجيم ونمط النقر
+    private String scalingAlgorithm = "Aspect Ratio"; // Aspect Ratio, Center, Top-Left, Absolute
+    private String clickStyle = "Single Click";       // Single Click, Double Click, Triple Click, Long Click
     
     // إعدادات شرط الصورة
     private boolean hasCondition = false;
@@ -16,9 +23,9 @@ public class Action {
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
-    // إعدادات نمط النقر والتعطيل
-    private String clickStyle = "Single Click"; // Single Click, Double Click, Long Press
+    // حالة التعطيل والتخصيص
     private boolean isDisabled = false;
+    private String customName = null;
 
     public Action(String type, String detail) {
         this.type = type;
@@ -33,11 +40,32 @@ public class Action {
     }
 
     public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
+
     public String getDetail() { return detail; }
+    public void setDetail(String detail) { this.detail = detail; }
+
     public int getX() { return x; }
+    public void setX(int x) { this.x = x; }
+
     public int getY() { return y; }
-    public int getDelayMs() { return delayMs; }
-    public void setDelayMs(int delayMs) { this.delayMs = delayMs; }
+    public void setY(int y) { this.y = y; }
+
+    public int getDelayBeforeMs() { return delayBeforeMs; }
+    public void setDelayBeforeMs(int delayBeforeMs) { this.delayBeforeMs = delayBeforeMs; }
+
+    public int getDelayAfterMs() { return delayAfterMs; }
+    public void setDelayAfterMs(int delayAfterMs) { this.delayAfterMs = delayAfterMs; }
+
+    // متوافق مع الكود السابق
+    public int getDelayMs() { return delayAfterMs; }
+    public void setDelayMs(int delayMs) { this.delayAfterMs = delayMs; }
+
+    public String getScalingAlgorithm() { return scalingAlgorithm; }
+    public void setScalingAlgorithm(String scalingAlgorithm) { this.scalingAlgorithm = scalingAlgorithm; }
+
+    public String getClickStyle() { return clickStyle; }
+    public void setClickStyle(String clickStyle) { this.clickStyle = clickStyle; }
 
     public boolean hasCondition() { return hasCondition; }
     public void setHasCondition(boolean hasCondition) { this.hasCondition = hasCondition; }
@@ -64,9 +92,33 @@ public class Action {
         this.cropX = x; this.cropY = y; this.cropW = w; this.cropH = h;
     }
 
-    public String getClickStyle() { return clickStyle; }
-    public void setClickStyle(String clickStyle) { this.clickStyle = clickStyle; }
-
     public boolean isDisabled() { return isDisabled; }
     public void setDisabled(boolean disabled) { isDisabled = disabled; }
+
+    public String getCustomName() { return customName; }
+    public void setCustomName(String customName) { this.customName = customName; }
+
+    @Override
+    public Action clone() {
+        try {
+            return (Action) super.clone();
+        } catch (CloneNotSupportedException e) {
+            Action copy = new Action(this.type, this.detail, this.x, this.y);
+            copy.delayBeforeMs = this.delayBeforeMs;
+            copy.delayAfterMs = this.delayAfterMs;
+            copy.scalingAlgorithm = this.scalingAlgorithm;
+            copy.clickStyle = this.clickStyle;
+            copy.hasCondition = this.hasCondition;
+            copy.conditionType = this.conditionType;
+            copy.imageName = this.imageName;
+            copy.imagePath = this.imagePath;
+            copy.similarity = this.similarity;
+            copy.isNotAppear = this.isNotAppear;
+            copy.cropX = this.cropX; copy.cropY = this.cropY;
+            copy.cropW = this.cropW; copy.cropH = this.cropH;
+            copy.isDisabled = this.isDisabled;
+            copy.customName = this.customName;
+            return copy;
+        }
+    }
 }
