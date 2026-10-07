@@ -95,7 +95,7 @@ public class FloatingWindowService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
 
-        // 1. استقبال إحداثيات النقر
+        // 1. استقبال إحداثيات النقر العادي
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -105,7 +105,8 @@ public class FloatingWindowService extends Service {
 
                 if (editIndex >= 0 && editIndex < GlobalData.actionList.size()) {
                     Action existing = GlobalData.actionList.get(editIndex);
-                    existing.setX(x); existing.setY(y);
+                    existing.setX(x);
+                    existing.setY(y);
                     existing.setDetail("Click [" + x + ", " + y + "] [C]");
                     updateHudActionCards();
                     openHudBar();
@@ -709,6 +710,9 @@ public class FloatingWindowService extends Service {
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
+    /**
+     * دالة فحص ومطابقة موقع الأكشن (تم تعريفها مرة واحدة فقط لمنع خطأ التكرار)
+     */
     private Point findMatchForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         double minThresh = action.getSimilarity();
@@ -745,6 +749,7 @@ public class FloatingWindowService extends Service {
         TextView tvY = new TextView(themedContext);
         tvY.setText("Offset Y (بكسل):");
         tvY.setTextColor(android.graphics.Color.WHITE);
+        tvY.setPadding(0, 16, 0, 0);
         final EditText etY = new EditText(themedContext);
         etY.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         etY.setText(String.valueOf(action.getOffsetY()));
@@ -1249,23 +1254,6 @@ public class FloatingWindowService extends Service {
                     Toast.makeText(FloatingWindowService.this, "اكتمل التشغيل!", Toast.LENGTH_SHORT).show()
             );
         }).start();
-    }
-
-    private Point findMatchForAction(Bitmap screen, Bitmap template, Action action) {
-        String mode = action.getDetectLocationMode();
-        double minThresh = action.getSimilarity();
-
-        if ("FULL_SCREEN".equals(mode)) {
-            return VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
-        } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            return VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
-        } else {
-            double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
-            if (sim >= minThresh) {
-                return new Point(action.getCropX(), action.getCropY());
-            }
-        }
-        return null;
     }
 
     private void executeSingleActionNow(Action action) {
