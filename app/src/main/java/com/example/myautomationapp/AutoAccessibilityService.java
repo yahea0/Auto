@@ -34,7 +34,7 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * نقرة عادية فورية في المركز
+     * Single Click - نقرة عادية فورية (45ms)
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
@@ -48,7 +48,7 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * نقرة مزدوجة سريعة Double Click
+     * Double Click - نقرة مزدوجة سريعة
      */
     public void doubleClick(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
@@ -58,12 +58,28 @@ public class AutoAccessibilityService extends AccessibilityService {
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 40));
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 90, 40));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 80, 40));
         dispatchGesture(builder.build(), null, null);
     }
 
     /**
-     * ضغطة مطولة Long Press
+     * Triple Click - نقرة ثلاثية
+     */
+    public void tripleClick(int x, int y) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+        Path path = new Path();
+        path.moveTo(x, y);
+        path.lineTo(x, y);
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 35));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 75, 35));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 150, 35));
+        dispatchGesture(builder.build(), null, null);
+    }
+
+    /**
+     * Long Click - ضغطة مطولة (500ms)
      */
     public void longClick(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
