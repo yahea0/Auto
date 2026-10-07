@@ -16,7 +16,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.annotation.Nullable;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -29,6 +28,7 @@ public class ImageCropPickerService extends Service {
     private WindowManager.LayoutParams frameParams;
     private TextView tvCropCoords, tvCropDimensions;
     private int targetClickX, targetClickY;
+    private boolean isStandaloneClickImage = false; // هل القص لأكشن Click Image مستقل؟
 
     @Nullable
     @Override
@@ -39,6 +39,7 @@ public class ImageCropPickerService extends Service {
         if (intent != null) {
             targetClickX = intent.getIntExtra("target_x", 500);
             targetClickY = intent.getIntExtra("target_y", 1000);
+            isStandaloneClickImage = intent.getBooleanExtra("is_click_image", false);
         }
         return START_NOT_STICKY;
     }
@@ -157,13 +158,11 @@ public class ImageCropPickerService extends Service {
             }
         });
 
-        // التقاط الصورة الحقيقية وقصها فور الضغط على تأكيد ✓
         controlBoxView.findViewById(R.id.btnCropConfirm).setOnClickListener(v -> captureAndSaveTemplate());
         controlBoxView.findViewById(R.id.btnCropCancel).setOnClickListener(v -> stopSelf());
     }
 
     private void captureAndSaveTemplate() {
-        // إخفاء الواجهة العائمة لحظياً لكي لا تظهر الحدود السماوية في الصورة المقتصة
         controlBoxView.setVisibility(View.GONE);
         cropFrameView.setVisibility(View.GONE);
 
@@ -191,7 +190,7 @@ public class ImageCropPickerService extends Service {
                 e.printStackTrace();
             }
 
-            Intent intent = new Intent("IMAGE_TEMPLATE_CROPPED");
+            Intent intent = new Intent(isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
             intent.setPackage(getPackageName());
             intent.putExtra("crop_x", frameParams.x);
             intent.putExtra("crop_y", frameParams.y);
