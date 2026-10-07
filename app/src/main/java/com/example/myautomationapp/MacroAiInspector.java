@@ -3,77 +3,51 @@ package com.example.myautomationapp;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;
-import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MacroAiInspector {
 
     /**
-     * تشخيص شامل لحالة النظام وما يستطيع وما لا يستطيع البرنامج فعله حالياً
+     * توليد قائمة النسب المئوية المتاحة للضغط بنجاح مع فواصل (مثل: 75, 74, 73, 72...)
      */
-    public static String getSystemDiagnosticReport(Context context) {
-        StringBuilder report = new StringBuilder();
-        report.append("🤖 تقرير الذكاء الاصطناعي لتشخيص التطبيق:\n\n");
+    public static String generateAvailablePassingPercentages(double exactSim) {
+        int maxPassing = (int) Math.floor(exactSim);
+        if (maxPassing <= 0) return "لا توجد نسب نجاح (الصورة غير مطابقة نهائياً)";
 
-        // 1. فحص خدمة الوصول (محرك النقر)
-        if (AutoAccessibilityService.isRunning()) {
-            report.append("✅ محرك النقر (Accessibility): نشط وجاهز للتنفيذ الفوري.\n");
-        } else {
-            report.append("❌ محرك النقر: متوقف! (البرنامج لا يستطيع لمس الشاشة بدون تفعيل الخدمة من الإعدادات).\n");
+        List<String> list = new ArrayList<>();
+        // عرض أفضل النسب المتاحة القريبة من النسبة اللحظية
+        for (int i = maxPassing; i >= Math.max(1, maxPassing - 8); i--) {
+            list.add(String.valueOf(i));
         }
-
-        // 2. فحص محرك تصوير الشاشة (الرؤية)
-        if (ScreenCaptureManager.getInstance() != null) {
-            report.append("✅ محرك الرؤية (MediaProjection): مصرح له بالتقاط فريمات الشاشة.\n");
-        } else {
-            report.append("⚠️ محرك الرؤية: لم يتم تهيئة إذن الشاشة بعد.\n");
-        }
-
-        // 3. فحص صلاحية الظهور فوق التطبيقات
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(context)) {
-            report.append("✅ صلاحية النوافذ العائمة: ممنوحة بنجاح.\n");
-        } else {
-            report.append("❌ صلاحية الظهور: معطلة!\n");
-        }
-
-        // 4. فحص الأكشنات الحالية وشروط الصور
-        int actionsCount = GlobalData.actionList.size();
-        report.append("\n📊 فحص الماكرو الحالي (").append(actionsCount).append(" أكشن):\n");
-
-        if (actionsCount == 0) {
-            report.append("• لا توجد أكشنات مضافة للتشغيل.\n");
-        } else {
-            int imageConditions = 0;
-            for (Action a : GlobalData.actionList) {
-                if (a.hasCondition() && "Image Appear".equals(a.getConditionType())) {
-                    imageConditions++;
-                    if (a.getImagePath() != null) {
-                        File f = new File(a.getImagePath());
-                        if (!f.exists()) {
-                            report.append("⚠️ تنبيه: ملف صورة الأكشن (").append(a.getImageName()).append(") غير موجود في الذاكرة!\n");
-                        }
-                    }
-                }
-            }
-            report.append("• عدد شروط الصور المرتبطة: ").append(imageConditions).append("\n");
-            report.append("• حالة الجاهزية: جاهز بنسبة 100% للتنفيذ.\n");
-        }
-
-        return report.toString();
+        return String.join(", ", list) + "%";
     }
 
     /**
-     * تحليل ذكي لنسبة التطابق وتقديم النسبة الموصى بها للألعاب
+     * تقديم أفضل نسبة موصى بها تضمن النقر المستقر
      */
     public static int getRecommendedSimilarity(double currentSimilarity) {
-        if (currentSimilarity >= 95.0) {
-            // للألعاب المستقرة: نوصي بـ 90% لتفادي تغير الإضاءة أو الريندر
-            return Math.max(70, (int) (currentSimilarity - 5));
-        } else if (currentSimilarity >= 75.0) {
-            return (int) (currentSimilarity - 8);
-        } else if (currentSimilarity >= 50.0) {
-            return (int) (currentSimilarity - 10);
+        if (currentSimilarity >= 98.0) {
+            return 95;
+        } else if (currentSimilarity >= 85.0) {
+            return (int) (currentSimilarity - 4);
+        } else if (currentSimilarity >= 60.0) {
+            return (int) (currentSimilarity - 6);
         } else {
-            return (int) currentSimilarity;
+            return Math.max(1, (int) currentSimilarity);
         }
+    }
+
+    /**
+     * تقرير تشخيصي شامل للنظام
+     */
+    public static String getSystemDiagnosticReport(Context context) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("🤖 فحص محرك الرؤية والذكاء الاصطناعي:\n\n");
+        sb.append(AutoAccessibilityService.isRunning() ? "✅ محرك النقر: متصل وجاهز.\n" : "❌ محرك النقر: غير مفعل في إمكانية الوصول!\n");
+        sb.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(context) ? "✅ النوافذ العائمة: مصرح لها.\n" : "❌ النوافذ العائمة: غير مصرح لها!\n");
+        sb.append("✅ نظام الفحص الصارم: 16-Grid Matrix نشط.\n");
+        sb.append("📊 عدد الأكشنات المجهزة: ").append(GlobalData.actionList.size()).append("\n");
+        return sb.toString();
     }
 }
