@@ -6,7 +6,7 @@ import android.graphics.Point;
 public class VisionEngine {
 
     /**
-     * مطابقة فائقة لمنطقة محددة (Captured Location أو Custom Region)
+     * مطابقة بكسلية صارمة لمنطقة محددة بدقة رياضية كاملة
      */
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
         if (screen == null || template == null) return 0.0;
@@ -23,7 +23,6 @@ public class VisionEngine {
         screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, th);
         template.getPixels(templatePixels, 0, tw, 0, 0, tw, th);
 
-        // إذا كانت الصورة صغيرة جداً (أقل من 35 بكسل) نقوم بفحص بكسلي كامل دون تقسيم شبكي
         if (tw < 35 || th < 35) {
             int matched = 0;
             int total = screenPixels.length;
@@ -37,7 +36,6 @@ public class VisionEngine {
             return ((double) matched / total) * 100.0;
         }
 
-        // للصور الكبيرة والمتوسطة: فحص المصفوفة الكتلية 16-Grid
         int gridCols = 4; int gridRows = 4;
         int cellW = Math.max(1, tw / gridCols);
         int cellH = Math.max(1, th / gridRows);
@@ -88,37 +86,96 @@ public class VisionEngine {
     }
 
     /**
-     * خوارزمية المسح الشامل (Full Screen أو Custom Region) للبحث عن الصورة في أي مكان بالنافذة
+     * عينات سريعة لاختبار المرشح في المسح الأولي
+     */
+    private static double fastSampleSimilarity(Bitmap screen, Bitmap template, int sx, int sy) {
+        int tw = template.getWidth();
+        int th = template.getHeight();
+        int samples = 0;
+        int matched = 0;
+
+        for (int y = 0; y < th; y += 6) {
+            for (int x = 0; x < tw; x += 6) {
+                int sc = screen.getPixel(sx + x, sy + y);
+                int tc = template.getPixel(x, y);
+
+                int diffR = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
+                int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
+                int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
+
+                if (diffR < 22 && diffG < 22 && diffB < 22) {
+                    matched++;
+                }
+                samples++;
+            }
+        }
+        return samples == 0 ? 0 : ((double) matched / samples) * 100.0;
+    }
+
+    /**
+     * المسح الهرمي ثنائي الدقة (Pyramidal Two-Stage Scan)
+     * يبحث في كامل الشاشة أو المنطقة المحددة ويعثر على الهدف بنقاء 1 بكسل
      */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
         if (screen == null || template == null) return null;
 
         int tw = template.getWidth();
         int th = template.getHeight();
+        if (tw <= 0 || th <= 0 || screen.getWidth() < tw || screen.getHeight() < th) return null;
 
         int boundX = Math.max(0, Math.min(searchX, screen.getWidth() - tw));
         int boundY = Math.max(0, Math.min(searchY, screen.getHeight() - th));
         int limitX = Math.min(screen.getWidth() - tw, boundX + searchW);
         int limitY = Math.min(screen.getHeight() - th, boundY + searchH);
 
-        Point bestPoint = null;
-        double highestSim = 0.0;
+        if (limitX < boundX || limitY < boundY) return null;
 
-        int step = (tw > 80 && th > 80) ? 6 : 3;
+        // 1. فحص فوري للموضع الأصلي المباشر (توفير فائق للأداء إذا لم يتحرك العنصر)
+        double directSim = compareSubRegionStrict(screen, template, boundX, boundY);
+        if (directSim >= minThreshold) {
+            return new Point(boundX, boundY);
+        }
 
-        for (int y = boundY; y <= limitY; y += step) {
-            for (int x = boundX; x <= limitX; x += step) {
-                double sim = compareSubRegionStrict(screen, template, x, y);
-                if (sim > highestSim) {
-                    highestSim = sim;
-                    bestPoint = new Point(x, y);
+        // 2. مسح سريع لتحديد موقع الذروة التقريبي
+        Point bestCandidate = null;
+        double bestScore = 0.0;
+        int coarseStep = (tw >= 50 && th >= 50) ? 5 : 3;
+
+        for (int y = boundY; y <= limitY; y += coarseStep) {
+            for (int x = boundX; x <= limitX; x += coarseStep) {
+                double score = fastSampleSimilarity(screen, template, x, y);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCandidate = new Point(x, y);
                 }
             }
         }
 
-        if (highestSim >= minThreshold && bestPoint != null) {
-            return bestPoint;
+        // 3. مسح تدقيق جراحي بخطوة 1 بكسل فقط حول نقطة الذروة للقفل على الهدف 100%
+        if (bestCandidate != null && bestScore >= Math.max(30.0, minThreshold - 25.0)) {
+            int fineStartX = Math.max(boundX, bestCandidate.x - coarseStep);
+            int fineEndX = Math.min(limitX, bestCandidate.x + coarseStep);
+            int fineStartY = Math.max(boundY, bestCandidate.y - coarseStep);
+            int fineEndY = Math.min(limitY, bestCandidate.y + coarseStep);
+
+            Point exactPoint = null;
+            double maxExactSim = 0.0;
+
+            for (int fy = fineStartY; fy <= fineEndY; fy++) {
+                for (int fx = fineStartX; fx <= fineEndX; fx++) {
+                    double strictScore = compareSubRegionStrict(screen, template, fx, fy);
+                    if (strictScore > maxExactSim) {
+                        maxExactSim = strictScore;
+                        exactPoint = new Point(fx, fy);
+                    }
+                }
+            }
+
+            if (maxExactSim >= minThreshold && exactPoint != null) {
+                return exactPoint;
+            }
         }
+
         return null;
     }
 }
