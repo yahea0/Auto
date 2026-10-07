@@ -24,6 +24,8 @@ public class CoordinatePickerService extends Service {
     private WindowManager.LayoutParams circleParams;
     private TextView tvLiveCoords;
     private int circleSizePx;
+    private int realScreenWidth;
+    private int realScreenHeight;
 
     @Nullable
     @Override
@@ -35,36 +37,39 @@ public class CoordinatePickerService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
-        DisplayMetrics dm = getResources().getDisplayMetrics();
-        circleSizePx = (int) (48 * dm.density);
+        
+        // قراءة كامل أبعاد الشاشة الفيزيائية الحقيقية (1080x2400) بدون أي استقطاع
+        DisplayMetrics realDm = new DisplayMetrics();
+        windowManager.getDefaultDisplay().getRealMetrics(realDm);
+        realScreenWidth = realDm.widthPixels;
+        realScreenHeight = realDm.heightPixels;
+        
+        circleSizePx = (int) (40 * realDm.density); // حجم 40dp أصغر وأدق
 
         int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
                 WindowManager.LayoutParams.TYPE_PHONE;
 
-        // تفعيل FLAG_LAYOUT_IN_SCREEN لضمان توحيد الصفر المطلق للشاشة الفيزيائية مع نظام النقر
         int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE 
                   | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN 
                   | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. صندوق الإحداثيات
         controlBoxView = LayoutInflater.from(themedContext).inflate(R.layout.picker_layout, null);
         tvLiveCoords = controlBoxView.findViewById(R.id.tvLiveCoords);
         boxParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         boxParams.gravity = Gravity.TOP | Gravity.START;
-        boxParams.x = (dm.widthPixels / 2) - (int) (115 * dm.density);
-        boxParams.y = (int) (100 * dm.density);
+        boxParams.x = (realScreenWidth / 2) - (int) (115 * realDm.density);
+        boxParams.y = (int) (80 * realDm.density);
 
-        // 2. دائرة التصويب الشفافة
         circleTargetView = LayoutInflater.from(themedContext).inflate(R.layout.picker_circle_layout, null);
         circleParams = new WindowManager.LayoutParams(
                 circleSizePx, circleSizePx,
                 layoutType, flags, PixelFormat.TRANSLUCENT);
         circleParams.gravity = Gravity.TOP | Gravity.START;
-        circleParams.x = (dm.widthPixels / 2) - (circleSizePx / 2);
-        circleParams.y = (dm.heightPixels / 2) - (circleSizePx / 2);
+        circleParams.x = (realScreenWidth / 2) - (circleSizePx / 2);
+        circleParams.y = (realScreenHeight / 2) - (circleSizePx / 2);
 
         try {
             windowManager.addView(controlBoxView, boxParams);
@@ -80,7 +85,6 @@ public class CoordinatePickerService extends Service {
         setupBoxButtons();
     }
 
-    // حساب المركز الفيزيائي الدقيق للنقطة على زجاج الشاشة
     private int getExactCenterX() {
         if (circleTargetView == null) return circleParams.x + (circleSizePx / 2);
         int[] loc = new int[2];
@@ -122,11 +126,11 @@ public class CoordinatePickerService extends Service {
                         int targetX = initX + (int) (event.getRawX() - touchX);
                         int targetY = initY + (int) (event.getRawY() - touchY);
 
-                        DisplayMetrics dm = getResources().getDisplayMetrics();
+                        // السماح بالحركة حتى آخر بكسل في أسفل الشاشة (2400 بكسل بالكامل)
                         if (targetX < 0) targetX = 0;
-                        if (targetX > dm.widthPixels - circleSizePx) targetX = dm.widthPixels - circleSizePx;
+                        if (targetX > realScreenWidth - circleSizePx) targetX = realScreenWidth - circleSizePx;
                         if (targetY < 0) targetY = 0;
-                        if (targetY > dm.heightPixels - circleSizePx) targetY = dm.heightPixels - circleSizePx;
+                        if (targetY > realScreenHeight - circleSizePx) targetY = realScreenHeight - circleSizePx;
 
                         circleParams.x = targetX;
                         circleParams.y = targetY;
@@ -158,12 +162,11 @@ public class CoordinatePickerService extends Service {
                         int targetX = initX + (int) (event.getRawX() - touchX);
                         int targetY = initY + (int) (event.getRawY() - touchY);
 
-                        DisplayMetrics dm = getResources().getDisplayMetrics();
                         int bw = controlBoxView.getWidth() > 0 ? controlBoxView.getWidth() : 230;
                         if (targetX < 0) targetX = 0;
-                        if (targetX > dm.widthPixels - bw) targetX = dm.widthPixels - bw;
-                        if (targetY < 40) targetY = 40;
-                        if (targetY > dm.heightPixels - 120) targetY = dm.heightPixels - 120;
+                        if (targetX > realScreenWidth - bw) targetX = realScreenWidth - bw;
+                        if (targetY < 0) targetY = 0;
+                        if (targetY > realScreenHeight - 120) targetY = realScreenHeight - 120;
 
                         boxParams.x = targetX;
                         boxParams.y = targetY;
@@ -202,9 +205,8 @@ public class CoordinatePickerService extends Service {
         });
 
         controlBoxView.findViewById(R.id.btnCenter).setOnClickListener(v -> {
-            DisplayMetrics dm = getResources().getDisplayMetrics();
-            circleParams.x = (dm.widthPixels / 2) - (circleSizePx / 2);
-            circleParams.y = (dm.heightPixels / 2) - (circleSizePx / 2);
+            circleParams.x = (realScreenWidth / 2) - (circleSizePx / 2);
+            circleParams.y = (realScreenHeight / 2) - (circleSizePx / 2);
             windowManager.updateViewLayout(circleTargetView, circleParams);
             circleTargetView.post(CoordinatePickerService.this::updateLiveCoords);
         });
