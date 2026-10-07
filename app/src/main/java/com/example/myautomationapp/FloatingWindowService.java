@@ -104,7 +104,8 @@ public class FloatingWindowService extends Service {
 
                 if (editIndex >= 0 && editIndex < GlobalData.actionList.size()) {
                     Action existing = GlobalData.actionList.get(editIndex);
-                    existing.setX(x); existing.setY(y);
+                    existing.setX(x);
+                    existing.setY(y);
                     existing.setDetail("Click [" + x + ", " + y + "] [C]");
                     updateHudActionCards();
                     openHudBar();
@@ -161,8 +162,6 @@ public class FloatingWindowService extends Service {
                 action.setHasCondition(true);
                 action.setConditionType("Image Appear");
                 action.setCropBounds(cropX, cropY, cropW, cropH);
-                
-                // تحديد مركز الصورة الافتراضي للنقر
                 action.setX(cropX + (cropW / 2));
                 action.setY(cropY + (cropH / 2));
 
@@ -566,7 +565,6 @@ public class FloatingWindowService extends Service {
             showEditDelayDialog(action);
         });
 
-        // Test Action ينقر في مركز الصورة المكتشفة بالضبط مع إزاحة Offset
         dialogView.findViewById(R.id.optImgTestAction).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -662,7 +660,6 @@ public class FloatingWindowService extends Service {
             showDetectLocationDialog(action);
         });
 
-        // Test Condition مع الحساب الدقيق للموضع
         dialogView.findViewById(R.id.subOptTestCondition).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -715,9 +712,6 @@ public class FloatingWindowService extends Service {
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
-    /**
-     * الدالة الحاسمة: إيجاد نقطة مركز الصورة بالضبط (Exact Center) بدون أي انحراف نحو أعلى اليسار
-     */
     private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         double minThresh = action.getSimilarity();
@@ -735,7 +729,6 @@ public class FloatingWindowService extends Service {
                 return new Point(topCorner.x + (tw / 2), topCorner.y + (th / 2));
             }
         } else {
-            // Captured Location: فحص دقيق في الموضع الأصلي وإرجاع مركز الصورة الفعلي
             double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
             if (sim >= minThresh) {
                 return new Point(action.getCropX() + (tw / 2), action.getCropY() + (th / 2));
@@ -1279,4 +1272,67 @@ public class FloatingWindowService extends Service {
         if ("Double Click".equals(style)) {
             AutoAccessibilityService.instance.doubleClick(action.getX(), action.getY());
         } else if ("Triple Click".equals(style)) {
-            AutoAccessibilityService.instance.tripleClick(action.getX(), action.get
+            AutoAccessibilityService.instance.tripleClick(action.getX(), action.getY());
+        } else if ("Long Click".equals(style)) {
+            AutoAccessibilityService.instance.longClick(action.getX(), action.getY());
+        } else {
+            AutoAccessibilityService.instance.click(action.getX(), action.getY());
+        }
+    }
+
+    private void showFullActionDialog() {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_action_select, null);
+        builder.setView(dialogView);
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+
+        dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, CoordinatePickerService.class);
+            startService(intent);
+        });
+
+        dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
+            dialog.dismiss();
+            showImageSourcePicker(null, false);
+        });
+
+        dialog.show();
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    CHANNEL_ID, "Auto Service Channel",
+                    NotificationManager.IMPORTANCE_LOW);
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) manager.createNotificationChannel(serviceChannel);
+        }
+    }
+
+    private Notification buildNotification() {
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Macrorify AI Engine")
+                .setContentText("الخدمة ونظام الرؤية الفائقة نشطان")
+                .setSmallIcon(android.R.drawable.ic_menu_compass)
+                .build();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (coordReceiver != null) try { unregisterReceiver(coordReceiver); } catch (Exception ignored) {}
+        if (cropReceiver != null) try { unregisterReceiver(cropReceiver); } catch (Exception ignored) {}
+        if (clickImageReceiver != null) try { unregisterReceiver(clickImageReceiver); } catch (Exception ignored) {}
+        if (customRegionReceiver != null) try { unregisterReceiver(customRegionReceiver); } catch (Exception ignored) {}
+        if (floatingView != null && windowManager != null) try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
+        if (popupMenuView != null && windowManager != null) try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
+        if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
+    }
+}
