@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="220dp"
+    android:layout_height="wrap_content"
+    app:cardBackgroundColor="#222222"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/tvCropCoords"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="X: 442  Y: 1008"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvCropDimensions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="W: 354  H: 204"
+            android:textColor="#00E5FF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/btnCropCenter"
+                android:layout_width="0dp"
+                android:layout_height="22dp"
+                android:layout_weight="1"
+                android:src="@android:drawable/ic_menu_rotate"
+                app:tint="#00E5FF" />
+
+            <ImageView
+                android:id="@+id/btnCropPreset"
+                android:layout_width="0dp"
+                android:layout_height="22dp"
+                android:layout_weight="1"
+                android:src="@android:drawable/ic_menu_crop"
+                app:tint="#00E5FF" />
+
+            <ImageView
+                android:id="@+id/btnCropCancel"
+                android:layout_width="0dp"
+                android:layout_height="22dp"
+                android:layout_weight="1"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                app:tint="#FF5252" />
+
+            <ImageView
+                android:id="@+id/btnCropConfirm"
+                android:layout_width="0dp"
+                android:layout_height="22dp"
+                android:layout_weight="1"
+                android:src="@android:drawable/checkbox_on_background"
+                app:tint="#4CAF50" />
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
