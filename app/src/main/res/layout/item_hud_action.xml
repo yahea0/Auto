@@ -45,7 +45,7 @@
                 android:id="@+id/tvActionSubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="[X1] [Delay 0ms/1000ms]"
+                android:text="[X1] [Delay 0ms/500ms]"
                 android:textColor="#3E3E3E"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -62,7 +62,7 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- الجزء السفلي المتفرع: شرط الصورة البصري (مطابق تماماً لصورة مايكروفي 3) -->
+    <!-- الجزء السفلي: شرط الصورة المتفرع (صورة 3) -->
     <LinearLayout
         android:id="@+id/layoutConditionBranch"
         android:layout_width="match_parent"
@@ -71,7 +71,6 @@
         android:visibility="gone"
         android:paddingTop="8dp">
 
-        <!-- شارة All true الخضراء -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -86,7 +85,6 @@
             android:paddingBottom="3dp"
             android:layout_marginBottom="4dp" />
 
-        <!-- كرت الشرط البصري المتفرع مع الخط الموصل -->
         <LinearLayout
             android:id="@+id/layoutNestedConditionCard"
             android:layout_width="match_parent"
@@ -96,11 +94,13 @@
             android:paddingStart="18dp"
             android:background="?attr/selectableItemBackground">
 
-            <!-- أيقونة الصورة الخضراء/التيل -->
+            <!-- عارض صورة الزر الحقيقية المقتصة (Thumbnail) -->
             <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:id="@+id/ivConditionThumb"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:background="#16A34A"
+                android:scaleType="centerCrop"
                 android:padding="6dp"
                 android:src="@android:drawable/ic_menu_gallery"
                 app:tint="#FFFFFF" />
