@@ -7,12 +7,12 @@ public class Action {
     private int y;
     private int delayMs = 500;
     
-    // بيانات شرط Macrorify البصري
     private boolean hasCondition = false;
     private String conditionType = "No Condition";
     private String imageName = "img_1";
-    private int similarity = 70; // 70% افتراضي كما في مايكروفي
-    private boolean isNotAppear = false; // false = [Appear], true = [Not Appear]
+    private String imagePath = null; // مسار حفظ الصورة على الهاتف
+    private int similarity = 70;
+    private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
     public Action(String type, String detail) {
@@ -43,11 +43,17 @@ public class Action {
     public String getImageName() { return imageName; }
     public void setImageName(String imageName) { this.imageName = imageName; }
 
+    public String getImagePath() { return imagePath; }
+    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+
     public int getSimilarity() { return similarity; }
     public void setSimilarity(int similarity) { this.similarity = similarity; }
 
     public boolean isNotAppear() { return isNotAppear; }
     public void setNotAppear(boolean notAppear) { isNotAppear = notAppear; }
+
+    public int getCropX() { return cropX; }
+    public int getCropY() { return cropY; }
 
     public void setCropBounds(int x, int y, int w, int h) {
         this.cropX = x; this.cropY = y; this.cropW = w; this.cropH = h;
