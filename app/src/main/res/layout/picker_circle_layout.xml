@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/pickerCircleTarget"
-    android:layout_width="48dp"
-    android:layout_height="48dp"
+    android:layout_width="40dp"
+    android:layout_height="40dp"
     android:background="@drawable/target_ring">
 
-    <!-- نقطة المركز الدائرية الناعمة (مطابقة لمايكروفي) -->
     <View
-        android:layout_width="8dp"
-        android:layout_height="8dp"
+        android:layout_width="6dp"
+        android:layout_height="6dp"
         android:layout_gravity="center"
         android:background="@drawable/target_center_dot" />
 
