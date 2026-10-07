@@ -95,7 +95,7 @@ public class FloatingWindowService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
 
-        // استقبال إحداثيات النقر
+        // 1. استقبال إحداثيات النقر
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -117,7 +117,7 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, coordReceiver, new IntentFilter("COORDINATES_PICKED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال شرط الصورة المقصوصة النظيفة
+        // 2. استقبال شرط الصورة
         cropReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -146,7 +146,7 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, cropReceiver, new IntentFilter("IMAGE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال أكشن Click Image المستقل
+        // 3. استقبال أكشن Click Image المستقل
         clickImageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -175,7 +175,7 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, clickImageReceiver, new IntentFilter("CLICK_IMAGE_ACTION_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال المنطقة المخصصة Custom Region
+        // 4. استقبال المنطقة المخصصة Custom Region
         customRegionReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -361,9 +361,6 @@ public class FloatingWindowService extends Service {
         }
     }
 
-    /**
-     * تحديث بطاقات الأكشن وعرض نمط منطقة الفحص (Captured / Custom / Full Screen)
-     */
     private void updateHudActionCards() {
         LinearLayout container = hudBarView.findViewById(R.id.layoutActionListContainer);
         if (container == null) return;
@@ -475,9 +472,6 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
-    /**
-     * نافذة Detect Location الكاملة المطابقة لمايكروفي (صور 2 و 3)
-     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -497,7 +491,6 @@ public class FloatingWindowService extends Service {
         TextView tvCustomDetails = dialogView.findViewById(R.id.tvCustomRegionValues);
         ImageView btnFrame = dialogView.findViewById(R.id.btnPickCustomRegionFrame);
 
-        // ضبط الاختيار الحالي
         String currentMode = action.getDetectLocationMode();
         rbCaptured.setChecked("CAPTURED".equals(currentMode));
         rbCustom.setChecked("CUSTOM".equals(currentMode));
@@ -517,7 +510,6 @@ public class FloatingWindowService extends Service {
         dialogView.findViewById(R.id.rowLocCustom).setOnClickListener(selectMode);
         dialogView.findViewById(R.id.rowLocFullScreen).setOnClickListener(selectMode);
 
-        // زر استدعاء مستطيل القص لتأطير المنطقة المخصصة بصرياً (صورة 3 و 4)
         btnFrame.setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -622,7 +614,7 @@ public class FloatingWindowService extends Service {
             dialog.dismiss();
             action.setDisabled(!action.isDisabled());
             updateHudActionCards();
-            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن (تخطي)" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
         });
 
         View.OnClickListener simpleDismiss = v -> {
@@ -639,9 +631,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * قائمة إعدادات شرط الصورة (صورة 1) مع ربط Edit Detect Location بنافذتها الكاملة
-     */
     private void showImageConditionSubMenu(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_image_condition_sub_menu, null);
@@ -664,7 +653,6 @@ public class FloatingWindowService extends Service {
             showEditSimilarityDialog(action);
         });
 
-        // Edit Detect Location -> فتح النافذة الرسمية (صور 2 و 3)
         dialogView.findViewById(R.id.subOptEditDetectLocation).setOnClickListener(v -> {
             dialog.dismiss();
             showDetectLocationDialog(action);
@@ -723,13 +711,15 @@ public class FloatingWindowService extends Service {
 
     private Point findMatchForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
+        double minThresh = action.getSimilarity();
+
         if ("FULL_SCREEN".equals(mode)) {
-            return VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), action.getSimilarity());
+            return VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
         } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            return VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), action.getSimilarity());
+            return VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
         } else {
             double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
-            if (sim >= action.getSimilarity()) {
+            if (sim >= minThresh) {
                 return new Point(action.getCropX(), action.getCropY());
             }
         }
@@ -755,7 +745,6 @@ public class FloatingWindowService extends Service {
         TextView tvY = new TextView(themedContext);
         tvY.setText("Offset Y (بكسل):");
         tvY.setTextColor(android.graphics.Color.WHITE);
-        tvY.setPadding(0, 16, 0, 0);
         final EditText etY = new EditText(themedContext);
         etY.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
         etY.setText(String.valueOf(action.getOffsetY()));
@@ -809,9 +798,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * معرض الصور المرئي (Exist Gallery) يعرض الصور المصغرة الحقيقية وأبعادها
-     */
     private void showExistingImagesPicker(@Nullable Action actionToEdit, boolean isEditingExisting) {
         File filesDir = getFilesDir();
         File[] files = filesDir.listFiles((dir, name) -> name.startsWith("img_") && name.endsWith(".png"));
@@ -1181,9 +1167,6 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
-    /**
-     * تشغيل الماكرو الموحد: دعم الفحص والبحث وفق النمط المحدد (Captured / Custom / Full Screen)
-     */
     private void runUnifiedMacro() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -1355,4 +1338,3 @@ public class FloatingWindowService extends Service {
         if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
     }
 }
- 
