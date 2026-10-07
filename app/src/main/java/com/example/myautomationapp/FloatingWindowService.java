@@ -23,6 +23,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,6 +46,7 @@ public class FloatingWindowService extends Service {
     private boolean isPopupOpen = false;
     private boolean isHudOpen = false;
     private BroadcastReceiver coordReceiver;
+    private BroadcastReceiver cropReceiver;
 
     @Nullable
     @Override
@@ -73,7 +75,7 @@ public class FloatingWindowService extends Service {
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         new Handler(Looper.getMainLooper()).postDelayed(this::safeInitViews, 300);
 
-        // عند تأكيد الإحداثيات بالصح ✓: فتح نافذة اختيار الشرط Condition فوراً!
+        // 1. استقبال إحداثيات النقر من دائرة الهدف
         coordReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -83,6 +85,32 @@ public class FloatingWindowService extends Service {
             }
         };
         ContextCompat.registerReceiver(this, coordReceiver, new IntentFilter("COORDINATES_PICKED"), ContextCompat.RECEIVER_NOT_EXPORTED);
+
+        // 2. استقبال بيانات مستطيل القص المطاطي لشرط الصورة
+        cropReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int cropX = intent.getIntExtra("crop_x", 0);
+                int cropY = intent.getIntExtra("crop_y", 0);
+                int cropW = intent.getIntExtra("crop_w", 300);
+                int cropH = intent.getIntExtra("crop_h", 150);
+                int targetX = intent.getIntExtra("target_x", 500);
+                int targetY = intent.getIntExtra("target_y", 1000);
+
+                Action action = new Action("Click (x, y)", "Click [" + targetX + ", " + targetY + "] [C]", targetX, targetY);
+                action.setHasCondition(true);
+                action.setConditionType("Image Appear");
+                action.setImageName("img_" + (GlobalData.actionList.size() + 1));
+                action.setSimilarity(70);
+                action.setCropBounds(cropX, cropY, cropW, cropH);
+
+                GlobalData.actionList.add(action);
+                updateHudActionCards();
+                openHudBar();
+                Toast.makeText(FloatingWindowService.this, "تم حفظ شرط الصورة بنجاح!", Toast.LENGTH_SHORT).show();
+            }
+        };
+        ContextCompat.registerReceiver(this, cropReceiver, new IntentFilter("IMAGE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void safeInitViews() {
@@ -148,10 +176,8 @@ public class FloatingWindowService extends Service {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
+                        initialX = params.x; initialY = params.y;
+                        initialTouchX = event.getRawX(); initialTouchY = event.getRawY();
                         isDragging = false;
                         return true;
 
@@ -246,6 +272,7 @@ public class FloatingWindowService extends Service {
         }
     }
 
+    // بناء وتحديث بطاقات الأكشن المتفرعة في شريط مايكروفي (صورة 3)
     private void updateHudActionCards() {
         LinearLayout container = hudBarView.findViewById(R.id.layoutActionListContainer);
         if (container == null) return;
@@ -272,20 +299,35 @@ public class FloatingWindowService extends Service {
             TextView tvTitle = card.findViewById(R.id.tvActionTitle);
             TextView tvSubtitle = card.findViewById(R.id.tvActionSubtitle);
             TextView tvIndex = card.findViewById(R.id.tvActionIndex);
+            View branchLayout = card.findViewById(R.id.layoutConditionBranch);
 
-            // تمييز شارة [C] إذا كان للأكشن شرط
-            String conditionTag = !"No Condition".equals(action.getCondition()) ? " [" + action.getCondition() + "]" : " [C]";
             tvTitle.setText(action.getDetail() != null ? action.getDetail() : action.getType());
-            tvSubtitle.setText("[Delay " + action.getDelayMs() + "ms]" + conditionTag);
+            tvSubtitle.setText("[X1] [Delay 0ms/" + action.getDelayMs() + "ms]");
             tvIndex.setText(String.valueOf(index + 1));
 
-            card.setOnClickListener(v -> showMacrorifyActionMenu(action, index));
+            // إذا كان للأكشن شرط بصري (صورة 3)
+            if (action.hasCondition()) {
+                branchLayout.setVisibility(View.VISIBLE);
+                TextView tvCondTitle = card.findViewById(R.id.tvConditionTitle);
+                String state = action.isNotAppear() ? "[Not Appear]" : "[Appear]";
+                tvCondTitle.setText("Image [" + action.getImageName() + "] " + state + " [" + action.getSimilarity() + "%]");
+
+                // عند الضغط على كرت الشرط المتفرع -> فتح قائمة خيارات الشرط البصري (صورة 4)
+                View nestedCard = card.findViewById(R.id.layoutNestedConditionCard);
+                nestedCard.setOnClickListener(v -> showConditionOptionsMenu(action));
+            } else {
+                branchLayout.setVisibility(View.GONE);
+            }
+
+            // عند الضغط على كرت النقر العلوي -> فتح خيارات الأكشن الرئيسية
+            View mainClick = card.findViewById(R.id.layoutMainActionClick);
+            mainClick.setOnClickListener(v -> showMacrorifyActionMenu(action, index));
 
             container.addView(card);
         }
     }
 
-    // نافذة اختيار الشرط Condition المطابقة لصورة مايكروفي
+    // نافذة اختيار الشرط Condition
     private void showConditionDialog(int x, int y) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
@@ -297,49 +339,125 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
-        // Special: No Condition
-        setupConditionBtn(dialogView, R.id.btnNoCondition, dialog, () -> {
-            saveClickActionWithCondition(x, y, "No Condition");
+        // بدون شرط
+        dialogView.findViewById(R.id.btnNoCondition).setOnClickListener(v -> {
+            dialog.dismiss();
+            Action clickAction = new Action("Click (x, y)", "Click [" + x + ", " + y + "] [C]", x, y);
+            GlobalData.actionList.add(clickAction);
+            updateHudActionCards();
+            openHudBar();
+            Toast.makeText(this, "تمت إضافة النقر: [No Condition]", Toast.LENGTH_SHORT).show();
         });
 
-        // Detection
-        setupConditionBtn(dialogView, R.id.btnImageAppear, dialog, () -> saveClickActionWithCondition(x, y, "Image Appear"));
-        setupConditionBtn(dialogView, R.id.btnImageCount, dialog, () -> saveClickActionWithCondition(x, y, "Image Count"));
-        setupConditionBtn(dialogView, R.id.btnTextAppear, dialog, () -> saveClickActionWithCondition(x, y, "Text Appear"));
-        setupConditionBtn(dialogView, R.id.btnTextCount, dialog, () -> saveClickActionWithCondition(x, y, "Text Count"));
-        setupConditionBtn(dialogView, R.id.btnColorAppear, dialog, () -> saveClickActionWithCondition(x, y, "Color Appear"));
+        // اختيار شرط الصورة -> إطلاق مستطيل التحديد المطاطي فوراً (صورة 1)
+        dialogView.findViewById(R.id.btnImageAppear).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, ImageCropPickerService.class);
+            intent.putExtra("target_x", x);
+            intent.putExtra("target_y", y);
+            startService(intent);
+        });
 
-        // Macro
-        setupConditionBtn(dialogView, R.id.btnActionResult, dialog, () -> saveClickActionWithCondition(x, y, "Action Result"));
-        setupConditionBtn(dialogView, R.id.btnActionCount, dialog, () -> saveClickActionWithCondition(x, y, "Action Count"));
-        setupConditionBtn(dialogView, R.id.btnRandomTrue, dialog, () -> saveClickActionWithCondition(x, y, "Random True"));
-        setupConditionBtn(dialogView, R.id.btnOnceTrue, dialog, () -> saveClickActionWithCondition(x, y, "Once True"));
-
-        // Variable & Time
-        setupConditionBtn(dialogView, R.id.btnVariableCondition, dialog, () -> saveClickActionWithCondition(x, y, "Variable Condition"));
-        setupConditionBtn(dialogView, R.id.btnIntervalTrue, dialog, () -> saveClickActionWithCondition(x, y, "Interval True"));
+        // باقي الشروط
+        View.OnClickListener simple = v -> {
+            dialog.dismiss();
+            Action a = new Action("Click (x, y)", "Click [" + x + ", " + y + "] [C]", x, y);
+            a.setHasCondition(true);
+            a.setConditionType("Condition");
+            GlobalData.actionList.add(a);
+            updateHudActionCards();
+            openHudBar();
+        };
+        dialogView.findViewById(R.id.btnImageCount).setOnClickListener(simple);
+        dialogView.findViewById(R.id.btnTextAppear).setOnClickListener(simple);
+        dialogView.findViewById(R.id.btnColorAppear).setOnClickListener(simple);
+        dialogView.findViewById(R.id.btnRandomTrue).setOnClickListener(simple);
 
         dialog.show();
     }
 
-    private void setupConditionBtn(View parent, int id, AlertDialog dialog, Runnable action) {
-        View v = parent.findViewById(id);
-        if (v != null) {
-            v.setOnClickListener(view -> {
-                dialog.dismiss();
-                action.run();
-            });
+    // نافذة إعدادات الشرط البصري الكاملة (صورة 4)
+    private void showConditionOptionsMenu(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_condition_options, null);
+
+        AlertDialog dialog = new AlertDialog.Builder(themedContext)
+                .setView(dialogView)
+                .create();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
+
+        // 1. التبديل بين [Appear] و [Not Appear]
+        TextView tvToggle = dialogView.findViewById(R.id.tvToggleAppearText);
+        tvToggle.setText(action.isNotAppear() ? "Change to [Appear]" : "Change to [Not Appear]");
+        dialogView.findViewById(R.id.optToggleAppear).setOnClickListener(v -> {
+            dialog.dismiss();
+            action.setNotAppear(!action.isNotAppear());
+            updateHudActionCards();
+            Toast.makeText(this, "تم تغيير حالة الشرط!", Toast.LENGTH_SHORT).show();
+        });
+
+        // 2. تعديل نسبة التطابق Similarity %
+        dialogView.findViewById(R.id.optEditSimilarity).setOnClickListener(v -> {
+            dialog.dismiss();
+            showEditSimilarityDialog(action);
+        });
+
+        // 3. إعادة تحديد مكان الصورة المطاطي
+        dialogView.findViewById(R.id.optEditDetectLocation).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, ImageCropPickerService.class);
+            intent.putExtra("target_x", action.getX());
+            intent.putExtra("target_y", action.getY());
+            startService(intent);
+        });
+
+        // 4. حذف الشرط
+        dialogView.findViewById(R.id.optDeleteCondition).setOnClickListener(v -> {
+            dialog.dismiss();
+            action.setHasCondition(false);
+            updateHudActionCards();
+            Toast.makeText(this, "تم حذف الشرط!", Toast.LENGTH_SHORT).show();
+        });
+
+        // 5. تجربة الشرط Test Condition
+        dialogView.findViewById(R.id.optTestCondition).setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(this, "فحص وجود الصورة: مطابقة بنسبة " + action.getSimilarity() + "%", Toast.LENGTH_SHORT).show();
+        });
+
+        dialog.show();
     }
 
-    private void saveClickActionWithCondition(int x, int y, String condition) {
-        Action clickAction = new Action("Click (x, y)", "Click [" + x + ", " + y + "] [C]", x, y);
-        clickAction.setDelayMs(500);
-        clickAction.setCondition(condition);
-        GlobalData.actionList.add(clickAction);
-        updateHudActionCards();
-        openHudBar();
-        Toast.makeText(this, "تمت إضافة النقر: [" + condition + "]", Toast.LENGTH_SHORT).show();
+    private void showEditSimilarityDialog(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("Edit Similarity %");
+
+        final EditText input = new EditText(themedContext);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(action.getSimilarity()));
+        builder.setView(input);
+
+        builder.setPositiveButton("حفظ", (dialog, which) -> {
+            String val = input.getText().toString();
+            int sim = val.isEmpty() ? 70 : Integer.parseInt(val);
+            if (sim > 100) sim = 100;
+            if (sim < 1) sim = 1;
+            action.setSimilarity(sim);
+            updateHudActionCards();
+        });
+        builder.setNegativeButton("إلغاء", null);
+
+        AlertDialog dialog = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        dialog.show();
     }
 
     private void showMacrorifyActionMenu(Action action, int index) {
@@ -361,33 +479,12 @@ public class FloatingWindowService extends Service {
             startService(intent);
         });
 
-        dialogView.findViewById(R.id.optEditDelay).setOnClickListener(v -> {
-            dialog.dismiss();
-            showEditDelayDialog(action);
-        });
-
         dialogView.findViewById(R.id.optTestAction).setOnClickListener(v -> {
             dialog.dismiss();
             if (AutoAccessibilityService.instance != null) {
-                if ("Click (x, y)".equals(action.getType())) {
-                    AutoAccessibilityService.instance.click(action.getX(), action.getY());
-                } else if ("Press Back".equals(action.getType())) {
-                    AutoAccessibilityService.instance.pressBack();
-                } else if ("Press Home".equals(action.getType())) {
-                    AutoAccessibilityService.instance.pressHome();
-                }
-                Toast.makeText(this, "تم تنفيذ: " + action.getType(), Toast.LENGTH_SHORT).show();
+                AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                Toast.makeText(this, "تم تنفيذ النقر!", Toast.LENGTH_SHORT).show();
             }
-        });
-
-        dialogView.findViewById(R.id.optCopy).setOnClickListener(v -> {
-            dialog.dismiss();
-            Action copy = new Action(action.getType(), action.getDetail(), action.getX(), action.getY());
-            copy.setCondition(action.getCondition());
-            copy.setDelayMs(action.getDelayMs());
-            GlobalData.actionList.add(index + 1, copy);
-            updateHudActionCards();
-            Toast.makeText(this, "تم نسخ الأكشن", Toast.LENGTH_SHORT).show();
         });
 
         dialogView.findViewById(R.id.optDelete).setOnClickListener(v -> {
@@ -397,48 +494,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
         });
 
-        dialogView.findViewById(R.id.optDisable).setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "تم تعطيل الأكشن", Toast.LENGTH_SHORT).show();
-        });
-
-        View.OnClickListener dummy = v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "قريباً", Toast.LENGTH_SHORT).show();
-        };
-        dialogView.findViewById(R.id.optEditScaling).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optEditClickStyle).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optAddAbove).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optAddCondition).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optReplace).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optConvertCustom).setOnClickListener(dummy);
-        dialogView.findViewById(R.id.optCut).setOnClickListener(dummy);
-
-        dialog.show();
-    }
-
-    private void showEditDelayDialog(Action action) {
-        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
-        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("Edit Delay (ms)");
-
-        final EditText input = new EditText(themedContext);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        input.setText(String.valueOf(action.getDelayMs()));
-        builder.setView(input);
-
-        builder.setPositiveButton("حفظ", (dialog, which) -> {
-            String val = input.getText().toString();
-            int ms = val.isEmpty() ? 500 : Integer.parseInt(val);
-            action.setDelayMs(ms);
-            updateHudActionCards();
-        });
-        builder.setNegativeButton("إلغاء", null);
-
-        AlertDialog dialog = builder.create();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
-        }
         dialog.show();
     }
 
@@ -454,11 +509,6 @@ public class FloatingWindowService extends Service {
 
         View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
         if (btnAdd != null) btnAdd.setOnClickListener(v -> showFullActionDialog());
-
-        View btnVar = hudBarView.findViewById(R.id.btnVariables);
-        if (btnVar != null) btnVar.setOnClickListener(v ->
-                Toast.makeText(this, "Variables & Expressions", Toast.LENGTH_SHORT).show()
-        );
     }
 
     private void runMacroExecution() {
@@ -477,25 +527,10 @@ public class FloatingWindowService extends Service {
         new Thread(() -> {
             for (Action action : GlobalData.actionList) {
                 if (AutoAccessibilityService.instance != null) {
-                    String type = action.getType();
-                    if ("Click (x, y)".equals(type)) {
+                    if ("Click (x, y)".equals(action.getType())) {
                         AutoAccessibilityService.instance.click(action.getX(), action.getY());
-                    } else if ("Swipe".equals(type)) {
-                        AutoAccessibilityService.instance.swipe(500, 1200, 500, 400, 400);
-                    } else if ("Press Back".equals(type)) {
+                    } else if ("Press Back".equals(action.getType())) {
                         AutoAccessibilityService.instance.pressBack();
-                    } else if ("Press Home".equals(type)) {
-                        AutoAccessibilityService.instance.pressHome();
-                    } else if ("Open Recent".equals(type)) {
-                        AutoAccessibilityService.instance.openRecents();
-                    } else if ("Notification".equals(type)) {
-                        AutoAccessibilityService.instance.openNotifications();
-                    } else if ("Quicksetting".equals(type)) {
-                        AutoAccessibilityService.instance.openQuickSettings();
-                    } else if ("Lock Screen".equals(type)) {
-                        AutoAccessibilityService.instance.lockScreen();
-                    } else if ("Screenshot".equals(type)) {
-                        AutoAccessibilityService.instance.takeScreenshot();
                     }
                 }
                 try {
@@ -521,57 +556,14 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
-        setupBtn(dialogView, R.id.btnClickXY, dialog, () -> {
+        dialogView.findViewById(R.id.btnClickXY).setOnClickListener(v -> {
+            dialog.dismiss();
             closeHudBar();
             Intent intent = new Intent(this, CoordinatePickerService.class);
             startService(intent);
         });
 
-        setupBtn(dialogView, R.id.btnClickImage, dialog, () ->
-            Toast.makeText(this, "Click Image (مربع القص)", Toast.LENGTH_SHORT).show()
-        );
-
-        setupBtn(dialogView, R.id.btnClickText, dialog, () -> addSimpleAction("Click Text", "[OCR Search]"));
-        setupBtn(dialogView, R.id.btnClickColor, dialog, () -> addSimpleAction("Click Color", "[Color Match]"));
-        setupBtn(dialogView, R.id.btnSwipe, dialog, () -> addSimpleAction("Swipe", "Swipe [500, 1200] -> [500, 400]"));
-        setupBtn(dialogView, R.id.btnRunJob, dialog, () -> addSimpleAction("Run Job", "Run: Main Job"));
-        setupBtn(dialogView, R.id.btnRestartJob, dialog, () -> addSimpleAction("Restart Job", "Restart Current Job"));
-        setupBtn(dialogView, R.id.btnStopJob, dialog, () -> addSimpleAction("Stop Job", "Stop Current Job"));
-        setupBtn(dialogView, R.id.btnSetVariable, dialog, () -> addSimpleAction("Set Variable", "x = x + 1"));
-        setupBtn(dialogView, R.id.btnToastMessage, dialog, () -> addSimpleAction("Toast Message", "Show Toast [Hello]"));
-        setupBtn(dialogView, R.id.btnOpenApp, dialog, () -> addSimpleAction("Open App", "Launch Selected App"));
-        setupBtn(dialogView, R.id.btnPressBack, dialog, () -> addSimpleAction("Press Back", "Device Back Key"));
-        setupBtn(dialogView, R.id.btnPressHome, dialog, () -> addSimpleAction("Press Home", "Device Home Key"));
-        setupBtn(dialogView, R.id.btnOpenRecent, dialog, () -> addSimpleAction("Open Recent", "Show Recent Apps"));
-        setupBtn(dialogView, R.id.btnOpenNotification, dialog, () -> addSimpleAction("Notification", "Pull Notification Panel"));
-        setupBtn(dialogView, R.id.btnOpenQuickSettings, dialog, () -> addSimpleAction("Quicksetting", "Open Quick Settings"));
-        setupBtn(dialogView, R.id.btnLockScreen, dialog, () -> addSimpleAction("Lock Screen", "Lock Device Screen"));
-        setupBtn(dialogView, R.id.btnScreenshot, dialog, () -> addSimpleAction("Screenshot", "Take Screen Capture"));
-        setupBtn(dialogView, R.id.btnEmptyAction, dialog, () -> addSimpleAction("Empty Action", "[No-Op Step]"));
-        setupBtn(dialogView, R.id.btnWait, dialog, () -> addSimpleAction("Wait", "Wait 1000ms"));
-        setupBtn(dialogView, R.id.btnPauseMacro, dialog, () -> addSimpleAction("Pause Macro", "Pause Execution"));
-        setupBtn(dialogView, R.id.btnStopMacro, dialog, () -> addSimpleAction("Stop Macro", "Stop Macro"));
-        setupBtn(dialogView, R.id.btnAddCustom, dialog, () -> addSimpleAction("Custom Action", "User Custom Script"));
-
         dialog.show();
-    }
-
-    private void setupBtn(View parent, int id, AlertDialog dialog, Runnable action) {
-        View v = parent.findViewById(id);
-        if (v != null) {
-            v.setOnClickListener(view -> {
-                dialog.dismiss();
-                action.run();
-            });
-        }
-    }
-
-    private void addSimpleAction(String type, String detail) {
-        Action action = new Action(type, detail);
-        action.setDelayMs(500);
-        GlobalData.actionList.add(action);
-        updateHudActionCards();
-        Toast.makeText(this, "تمت إضافة: " + type, Toast.LENGTH_SHORT).show();
     }
 
     private void createNotificationChannel() {
@@ -595,17 +587,10 @@ public class FloatingWindowService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (coordReceiver != null) {
-            try { unregisterReceiver(coordReceiver); } catch (Exception ignored) {}
-        }
-        if (floatingView != null && windowManager != null) {
-            try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
-        }
-        if (popupMenuView != null && windowManager != null && popupMenuView.getWindowToken() != null) {
-            try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
-        }
-        if (hudBarView != null && windowManager != null && hudBarView.getWindowToken() != null) {
-            try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
-        }
+        if (coordReceiver != null) try { unregisterReceiver(coordReceiver); } catch (Exception ignored) {}
+        if (cropReceiver != null) try { unregisterReceiver(cropReceiver); } catch (Exception ignored) {}
+        if (floatingView != null && windowManager != null) try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
+        if (popupMenuView != null && windowManager != null && popupMenuView.getWindowToken() != null) try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
+        if (hudBarView != null && windowManager != null && hudBarView.getWindowToken() != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
     }
 }
