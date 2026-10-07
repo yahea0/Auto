@@ -7,13 +7,18 @@ public class Action {
     private int y;
     private int delayMs = 500;
     
+    // إعدادات شرط الصورة
     private boolean hasCondition = false;
     private String conditionType = "No Condition";
     private String imageName = "img_1";
-    private String imagePath = null; // مسار حفظ الصورة على الهاتف
+    private String imagePath = null;
     private int similarity = 70;
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
+
+    // إعدادات نمط النقر والتعطيل
+    private String clickStyle = "Single Click"; // Single Click, Double Click, Long Press
+    private boolean isDisabled = false;
 
     public Action(String type, String detail) {
         this.type = type;
@@ -58,4 +63,10 @@ public class Action {
     public void setCropBounds(int x, int y, int w, int h) {
         this.cropX = x; this.cropY = y; this.cropW = w; this.cropH = h;
     }
+
+    public String getClickStyle() { return clickStyle; }
+    public void setClickStyle(String clickStyle) { this.clickStyle = clickStyle; }
+
+    public boolean isDisabled() { return isDisabled; }
+    public void setDisabled(boolean disabled) { isDisabled = disabled; }
 }
