@@ -229,36 +229,49 @@ public class FloatingWindowService extends Service {
 
     private void togglePopupMenu() {
         if (isPopupOpen) {
-            if (popupMenuView.getWindowToken() != null) windowManager.removeView(popupMenuView);
+            closePopupMenu();
         } else {
             if (popupMenuView.getWindowToken() == null) windowManager.addView(popupMenuView, popupParams);
+            isPopupOpen = true;
         }
-        isPopupOpen = !isPopupOpen;
+    }
+
+    private void closePopupMenu() {
+        if (isPopupOpen && popupMenuView.getWindowToken() != null) {
+            windowManager.removeView(popupMenuView);
+            isPopupOpen = false;
+        }
     }
 
     private void setupPopupMenu() {
         View btnManage = popupMenuView.findViewById(R.id.menuManageActions);
         if (btnManage != null) btnManage.setOnClickListener(v -> {
-            togglePopupMenu();
+            closePopupMenu();
             openHudBar();
         });
 
-        // تشغيل موحد وفوري من القائمة الأولى
         View btnRun = popupMenuView.findViewById(R.id.menuRunTest);
         if (btnRun != null) btnRun.setOnClickListener(v -> {
-            togglePopupMenu();
+            closePopupMenu(); // إغلاق فوري
             runUnifiedMacro();
         });
 
         View btnSave = popupMenuView.findViewById(R.id.menuSave);
         if (btnSave != null) btnSave.setOnClickListener(v -> {
-            togglePopupMenu();
+            closePopupMenu();
             Toast.makeText(this, "تم حفظ الماكرو بنجاح!", Toast.LENGTH_SHORT).show();
+        });
+
+        // زر More لفتح تشخيص الذكاء الاصطناعي
+        View btnMore = popupMenuView.findViewById(R.id.menuMore);
+        if (btnMore != null) btnMore.setOnClickListener(v -> {
+            closePopupMenu();
+            showAiDiagnosticsDialog();
         });
 
         View btnExit = popupMenuView.findViewById(R.id.menuExit);
         if (btnExit != null) btnExit.setOnClickListener(v -> {
-            togglePopupMenu();
+            closePopupMenu();
             stopSelf();
         });
     }
@@ -374,6 +387,9 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
+    /**
+     * فحص الشرط اللحظي الذكي: فحص الشاشة نظيفة وعرض النسبة واقتراح النسبة الدقيقة
+     */
     private void showConditionOptionsMenu(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_condition_options, null);
@@ -400,21 +416,29 @@ public class FloatingWindowService extends Service {
             showEditSimilarityDialog(action);
         });
 
+        // Test Condition ذكي مع إخفاء النافذة وفحص دقيق واقتراح النسبة
         dialogView.findViewById(R.id.optTestCondition).setOnClickListener(v -> {
             dialog.dismiss();
+            closeHudBar(); // إخفاء الشريط لالتقاط شاشة اللعبة نظيفة تماماً
+
             new Thread(() -> {
+                try { Thread.sleep(120); } catch (Exception ignored) {} // تأخير التثبيت
+
                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-                if (screen != null && action.getImagePath() != null) {
-                    Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
-                    if (template != null) {
-                        double sim = VisionEngine.compareSubRegion(screen, template, action.getCropX(), action.getCropY());
-                        new Handler(Looper.getMainLooper()).post(() ->
-                            Toast.makeText(FloatingWindowService.this, 
-                                "نسبة التطابق = " + (int) sim + "% (المطلوب: " + action.getSimilarity() + "%)", 
-                                Toast.LENGTH_LONG).show()
-                        );
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    openHudBar(); // إعادة فتح الشريط
+
+                    if (screen != null && action.getImagePath() != null) {
+                        Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
+                        if (template != null) {
+                            double exactSim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+                            int recommended = MacroAiInspector.getRecommendedSimilarity(exactSim);
+                            showAiTestResultDialog(action, exactSim, recommended);
+                        }
+                    } else {
+                        Toast.makeText(FloatingWindowService.this, "تعذر التقاط الشاشة، تأكد من إذن التسجيل", Toast.LENGTH_SHORT).show();
                     }
-                }
+                });
             }).start();
         });
 
@@ -428,10 +452,51 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
+    // نافذة نتيجة فحص الذكاء الاصطناعي مع زر تطبيق النسبة المقترحة
+    private void showAiTestResultDialog(Action action, double exactSim, int recommendedSim) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("🔍 فحص الرؤية والذكاء الاصطناعي");
+
+        String msg = "النسبة اللحظية الدقيقة: " + String.format("%.1f", exactSim) + "%\n"
+                   + "النسبة المضبوطة حالياً: " + action.getSimilarity() + "%\n\n"
+                   + "💡 توصية الذكاء الاصطناعي: " + recommendedSim + "%\n"
+                   + (exactSim >= action.getSimilarity() ? "✅ الماكرو سينقر بنجاح الآن!" : "⚠️ لن ينقر! النسبة الحالية أقل من المطلوب.");
+
+        builder.setMessage(msg);
+        builder.setPositiveButton("تطبيق النسبة المقترحة (" + recommendedSim + "%)", (d, w) -> {
+            action.setSimilarity(recommendedSim);
+            updateHudActionCards();
+            Toast.makeText(this, "تم تحديث النسبة إلى " + recommendedSim + "%", Toast.LENGTH_SHORT).show();
+        });
+        builder.setNegativeButton("إغلاق", null);
+
+        AlertDialog d = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            d.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        d.show();
+    }
+
+    // نافذة تقرير تشخيص الذكاء الاصطناعي الشامل
+    private void showAiDiagnosticsDialog() {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("🤖 تقرير الذكاء الاصطناعي للمشروع");
+        builder.setMessage(MacroAiInspector.getSystemDiagnosticReport(this));
+        builder.setPositiveButton("حسناً", null);
+
+        AlertDialog d = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            d.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        d.show();
+    }
+
     private void showEditSimilarityDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("Edit Similarity %");
+        builder.setTitle("Edit Similarity % (1 - 100)");
 
         final EditText input = new EditText(themedContext);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
@@ -455,9 +520,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * تفعيل كافة خيارات كرت الأكشن الـ 13 بمنطق برمجي كامل (صورة 1)
-     */
     private void showMacrorifyActionMenu(Action action, int index) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_action_options, null);
@@ -470,7 +532,6 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
-        // 1. Edit Coordinates
         dialogView.findViewById(R.id.optEditCoordinates).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -478,32 +539,27 @@ public class FloatingWindowService extends Service {
             startService(intent);
         });
 
-        // 2. Edit Click Style (Single Click, Double Click, Long Press)
         dialogView.findViewById(R.id.optEditClickStyle).setOnClickListener(v -> {
             dialog.dismiss();
             showClickStyleDialog(action);
         });
 
-        // 3. Edit Delay (تعديل وقت التأخير)
         dialogView.findViewById(R.id.optEditDelay).setOnClickListener(v -> {
             dialog.dismiss();
             showEditDelayDialog(action);
         });
 
-        // 4. Test Action (تشغيل فوري في 0ms)
         dialogView.findViewById(R.id.optTestAction).setOnClickListener(v -> {
             dialog.dismiss();
             executeSingleActionNow(action);
             Toast.makeText(this, "تم تنفيذ النقر فوراً!", Toast.LENGTH_SHORT).show();
         });
 
-        // 5. Add Condition (إضافة شرط للأكشن)
         dialogView.findViewById(R.id.optAddCondition).setOnClickListener(v -> {
             dialog.dismiss();
             showConditionDialog(action.getX(), action.getY());
         });
 
-        // 6. Copy (نسخ الأكشن)
         dialogView.findViewById(R.id.optCopy).setOnClickListener(v -> {
             dialog.dismiss();
             Action copy = new Action(action.getType(), action.getDetail(), action.getX(), action.getY());
@@ -518,7 +574,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم نسخ الأكشن ومضاعفته!", Toast.LENGTH_SHORT).show();
         });
 
-        // 7. Delete (حذف الأكشن)
         dialogView.findViewById(R.id.optDelete).setOnClickListener(v -> {
             dialog.dismiss();
             GlobalData.actionList.remove(index);
@@ -526,7 +581,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم حذف الأكشن!", Toast.LENGTH_SHORT).show();
         });
 
-        // 8. Disable (تعطيل/تفعيل الأكشن)
         dialogView.findViewById(R.id.optDisable).setOnClickListener(v -> {
             dialog.dismiss();
             action.setDisabled(!action.isDisabled());
@@ -534,7 +588,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
         });
 
-        // أزرار التحويل والاستبدال
         View.OnClickListener simpleDismiss = v -> {
             dialog.dismiss();
             Toast.makeText(this, "قريباً", Toast.LENGTH_SHORT).show();
@@ -596,19 +649,22 @@ public class FloatingWindowService extends Service {
         View btnCollapse = hudBarView.findViewById(R.id.btnCollapse);
         if (btnCollapse != null) btnCollapse.setOnClickListener(v -> closeHudBar());
 
-        // تشغيل موحد وفوري من شريط Main Job
         View btnPlay = hudBarView.findViewById(R.id.btnPlayHud);
         if (btnPlay != null) btnPlay.setOnClickListener(v -> {
-            closeHudBar();
+            closeHudBar(); // إغلاق فوري
             runUnifiedMacro();
         });
 
         View btnAdd = hudBarView.findViewById(R.id.btnAddActionHud);
         if (btnAdd != null) btnAdd.setOnClickListener(v -> showFullActionDialog());
+
+        // زر (x) يفتح تشخيص الذكاء الاصطناعي للمشروع
+        View btnVar = hudBarView.findViewById(R.id.btnVariables);
+        if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
     /**
-     * محرك التشغيل الموحد الفوري (يبدأ فوراً بـ 0ms تأخير)
+     * محرك التشغيل الموحد الفوري: إخفاء القوائم فوراً + تأخير تثبيت الشاشة 120ms
      */
     private void runUnifiedMacro() {
         if (GlobalData.actionList.isEmpty()) {
@@ -621,22 +677,32 @@ public class FloatingWindowService extends Service {
             return;
         }
 
-        Toast.makeText(this, "تشغيل...", Toast.LENGTH_SHORT).show();
+        // إغلاق أي نوافذ عائمة فوراً حتى لا تعيق الرؤية أو اللمس
+        closeHudBar();
+        closePopupMenu();
+
+        Toast.makeText(this, "بدء التشغيل الفوري...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
+            // تأخير 120ms لإعطاء معالج الرسوميات وقتاً لتحديث فريم اللعبة نظيفاً بدون القوائم
+            try { Thread.sleep(120); } catch (InterruptedException ignored) {}
+
             for (int i = 0; i < GlobalData.actionList.size(); i++) {
                 Action action = GlobalData.actionList.get(i);
                 if (action.isDisabled()) continue;
 
                 if (AutoAccessibilityService.instance != null) {
-                    if ("Click (x, y)".equals(action.getType())) {
+                    String type = action.getType();
+                    if ("Click (x, y)".equals(type)) {
+
+                        // فحص الشرط البصري الصارم
                         if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
                             boolean conditionMet = false;
                             if (action.getImagePath() != null) {
                                 Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (template != null && screen != null) {
-                                    double currentSim = VisionEngine.compareSubRegion(screen, template, action.getCropX(), action.getCropY());
+                                    double currentSim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
                                     boolean detected = (currentSim >= action.getSimilarity());
                                     conditionMet = action.isNotAppear() ? !detected : detected;
                                 }
@@ -644,15 +710,13 @@ public class FloatingWindowService extends Service {
                             if (!conditionMet) continue;
                         }
 
-                        // تنفيذ النمط المختار فوراً
                         executeSingleActionNow(action);
 
-                    } else if ("Press Back".equals(action.getType())) {
+                    } else if ("Press Back".equals(type)) {
                         AutoAccessibilityService.instance.pressBack();
                     }
                 }
 
-                // تطبيق وقت التأخير بين الأكشنات فقط
                 if (i < GlobalData.actionList.size() - 1 && action.getDelayMs() > 0) {
                     try { Thread.sleep(action.getDelayMs()); } catch (InterruptedException ignored) {}
                 }
@@ -707,8 +771,8 @@ public class FloatingWindowService extends Service {
 
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Macrorify Engine")
-                .setContentText("الخدمة ونظام الرؤية نشطان")
+                .setContentTitle("Macrorify AI Engine")
+                .setContentText("الخدمة ونظام الرؤية الذكي نشطان")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .build();
     }
