@@ -12,7 +12,7 @@ public class Action implements Cloneable {
     private String scalingAlgorithm = "Aspect Ratio";
     private String clickStyle = "Single Click";
     
-    // إعدادات شرط الصورة وأكشن Click Image
+    // إعدادات شرط الصورة
     private boolean hasCondition = false;
     private String conditionType = "No Condition";
     private String imageName = "img_1";
@@ -21,10 +21,12 @@ public class Action implements Cloneable {
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
-    // إزاحة النقر بالنسبة للصورة (Offset X, Y)
+    // نمط ومنطقة الفحص (Detect Location)
+    private String detectLocationMode = "CAPTURED"; // CAPTURED, CUSTOM, FULL_SCREEN
+    private int customRegionX, customRegionY, customRegionW, customRegionH;
+
     private int offsetX = 0;
     private int offsetY = 0;
-
     private boolean isDisabled = false;
     private String customName = null;
 
@@ -94,6 +96,18 @@ public class Action implements Cloneable {
         this.cropX = x; this.cropY = y; this.cropW = w; this.cropH = h;
     }
 
+    public String getDetectLocationMode() { return detectLocationMode; }
+    public void setDetectLocationMode(String detectLocationMode) { this.detectLocationMode = detectLocationMode; }
+
+    public int getCustomRegionX() { return customRegionX; }
+    public int getCustomRegionY() { return customRegionY; }
+    public int getCustomRegionW() { return customRegionW; }
+    public int getCustomRegionH() { return customRegionH; }
+
+    public void setCustomRegion(int x, int y, int w, int h) {
+        this.customRegionX = x; this.customRegionY = y; this.customRegionW = w; this.customRegionH = h;
+    }
+
     public int getOffsetX() { return offsetX; }
     public void setOffsetX(int offsetX) { this.offsetX = offsetX; }
 
@@ -124,6 +138,9 @@ public class Action implements Cloneable {
             copy.isNotAppear = this.isNotAppear;
             copy.cropX = this.cropX; copy.cropY = this.cropY;
             copy.cropW = this.cropW; copy.cropH = this.cropH;
+            copy.detectLocationMode = this.detectLocationMode;
+            copy.customRegionX = this.customRegionX; copy.customRegionY = this.customRegionY;
+            copy.customRegionW = this.customRegionW; copy.customRegionH = this.customRegionH;
             copy.offsetX = this.offsetX; copy.offsetY = this.offsetY;
             copy.isDisabled = this.isDisabled;
             copy.customName = this.customName;
