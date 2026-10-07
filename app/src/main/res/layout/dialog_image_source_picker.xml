@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="290dp"
+    android:layout_height="wrap_content"
+    app:cardBackgroundColor="#222222"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="18dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="20dp">
+
+        <!-- بطاقة New (+) -->
+        <LinearLayout
+            android:id="@+id/btnSourceNew"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:orientation="vertical"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center"
+            android:layout_marginEnd="12dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_input_add"
+                app:tint="#121212" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="New"
+                android:textColor="#121212"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:paddingTop="6dp" />
+        </LinearLayout>
+
+        <!-- بطاقة Exist (📁) -->
+        <LinearLayout
+            android:id="@+id/btnSourceExist"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:orientation="vertical"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center"
+            android:layout_marginStart="12dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_agenda"
+                app:tint="#121212" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Exist"
+                android:textColor="#121212"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:paddingTop="6dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
