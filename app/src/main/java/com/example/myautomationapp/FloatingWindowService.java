@@ -1355,3 +1355,4 @@ public class FloatingWindowService extends Service {
         if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
     }
 }
+ 
