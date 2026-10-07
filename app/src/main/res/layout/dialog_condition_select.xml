@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#1E1E1E"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- هيدر القائمة -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Condition"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@android:drawable/ic_menu_help"
+                app:tint="#C084FC" />
+        </LinearLayout>
+
+        <!-- 1. قسم Special -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="✦ Special"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/btnNoCondition"
+            android:layout_width="160dp"
+            android:layout_height="54dp"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/action_icon_circle"
+                android:padding="6dp"
+                android:src="@android:drawable/btn_star_big_on"
+                app:tint="#FFFFFF" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No\nCondition"
+                android:textColor="#1E1E1E"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- 2. قسم Detection -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⛶ Detection"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnImageAppear"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_gallery"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Image\nAppear"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnImageCount"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_crop"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Image\nCount"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnTextAppear"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_search"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Text\nAppear"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnTextCount"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_view"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Text\nCount"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnColorAppear"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_slideshow"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Color\nAppear"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </GridLayout>
+
+        <!-- 3. قسم Macro -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📋 Macro"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2"
+            android:layout_marginBottom="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnActionResult"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_info_details"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Action\nResult"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnActionCount"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Action\nCount"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnRandomTrue"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/ic_menu_compass"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Random\nTrue"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnOnceTrue"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_columnWeight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/action_card_bg"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/action_icon_circle"
+                    android:padding="6dp"
+                    android:src="@android:drawable/checkbox_on_background"
+                    app:tint="#FFFFFF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Once\nTrue"
+                    android:textColor="#1E1E1E"
+                    android:textStyle="bold"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </GridLayout>
+
+        <!-- 4. قسم Variable -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="(x) Variable"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/btnVariableCondition"
+            android:layout_width="160dp"
+            android:layout_height="54dp"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:layout_marginBottom="12dp">
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/action_icon_circle"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                app:tint="#FFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Variable\nCondition"
+                android:textColor="#1E1E1E"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- 5. قسم Time -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🕒 Time"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/btnIntervalTrue"
+            android:layout_width="160dp"
+            android:layout_height="54dp"
+            android:background="@drawable/action_card_bg"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp">
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/action_icon_circle"
+                android:padding="6dp"
+                android:src="@android:drawable/ic_lock_idle_charging"
+                app:tint="#FFFFFF" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Interval\nTrue"
+                android:textColor="#1E1E1E"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
