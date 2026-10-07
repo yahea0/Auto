@@ -6,15 +6,13 @@ public class Action implements Cloneable {
     private int x;
     private int y;
     
-    // أوقات التأخير قبل وبعد (Macrorify Standard)
     private int delayBeforeMs = 0;
     private int delayAfterMs = 500;
     
-    // خوارزمية التحجيم ونمط النقر
-    private String scalingAlgorithm = "Aspect Ratio"; // Aspect Ratio, Center, Top-Left, Absolute
-    private String clickStyle = "Single Click";       // Single Click, Double Click, Triple Click, Long Click
+    private String scalingAlgorithm = "Aspect Ratio";
+    private String clickStyle = "Single Click";
     
-    // إعدادات شرط الصورة
+    // إعدادات شرط الصورة وأكشن Click Image
     private boolean hasCondition = false;
     private String conditionType = "No Condition";
     private String imageName = "img_1";
@@ -23,7 +21,10 @@ public class Action implements Cloneable {
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
-    // حالة التعطيل والتخصيص
+    // إزاحة النقر بالنسبة للصورة (Offset X, Y)
+    private int offsetX = 0;
+    private int offsetY = 0;
+
     private boolean isDisabled = false;
     private String customName = null;
 
@@ -57,7 +58,6 @@ public class Action implements Cloneable {
     public int getDelayAfterMs() { return delayAfterMs; }
     public void setDelayAfterMs(int delayAfterMs) { this.delayAfterMs = delayAfterMs; }
 
-    // متوافق مع الكود السابق
     public int getDelayMs() { return delayAfterMs; }
     public void setDelayMs(int delayMs) { this.delayAfterMs = delayMs; }
 
@@ -87,10 +87,18 @@ public class Action implements Cloneable {
 
     public int getCropX() { return cropX; }
     public int getCropY() { return cropY; }
+    public int getCropW() { return cropW; }
+    public int getCropH() { return cropH; }
 
     public void setCropBounds(int x, int y, int w, int h) {
         this.cropX = x; this.cropY = y; this.cropW = w; this.cropH = h;
     }
+
+    public int getOffsetX() { return offsetX; }
+    public void setOffsetX(int offsetX) { this.offsetX = offsetX; }
+
+    public int getOffsetY() { return offsetY; }
+    public void setOffsetY(int offsetY) { this.offsetY = offsetY; }
 
     public boolean isDisabled() { return isDisabled; }
     public void setDisabled(boolean disabled) { isDisabled = disabled; }
@@ -116,6 +124,7 @@ public class Action implements Cloneable {
             copy.isNotAppear = this.isNotAppear;
             copy.cropX = this.cropX; copy.cropY = this.cropY;
             copy.cropW = this.cropW; copy.cropH = this.cropH;
+            copy.offsetX = this.offsetX; copy.offsetY = this.offsetY;
             copy.isDisabled = this.isDisabled;
             copy.customName = this.customName;
             return copy;
