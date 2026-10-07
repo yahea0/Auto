@@ -2,9 +2,12 @@ package com.example.myautomationapp;
 
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.ContextThemeWrapper;
 import android.view.Gravity;
@@ -13,16 +16,17 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.Nullable;
+import java.io.File;
+import java.io.FileOutputStream;
 
 public class ImageCropPickerService extends Service {
     private WindowManager windowManager;
     private View controlBoxView;
     private View cropFrameView;
-    
     private WindowManager.LayoutParams boxParams;
     private WindowManager.LayoutParams frameParams;
-    
     private TextView tvCropCoords, tvCropDimensions;
     private int targetClickX, targetClickY;
 
@@ -53,7 +57,6 @@ public class ImageCropPickerService extends Service {
                   | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN 
                   | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
 
-        // 1. صندوق الإحداثيات والأبعاد
         controlBoxView = LayoutInflater.from(themedContext).inflate(R.layout.crop_picker_box_layout, null);
         tvCropCoords = controlBoxView.findViewById(R.id.tvCropCoords);
         tvCropDimensions = controlBoxView.findViewById(R.id.tvCropDimensions);
@@ -65,7 +68,6 @@ public class ImageCropPickerService extends Service {
         boxParams.x = (dm.widthPixels / 2) - (int) (110 * dm.density);
         boxParams.y = (int) (60 * dm.density);
 
-        // 2. مستطيل التحديد المطاطي (الافتراضي: 350x200 بكسل تقريباً)
         cropFrameView = LayoutInflater.from(themedContext).inflate(R.layout.crop_frame_layout, null);
         int initW = (int) (160 * dm.density);
         int initH = (int) (90 * dm.density);
@@ -105,14 +107,9 @@ public class ImageCropPickerService extends Service {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initX = frameParams.x;
-                        initY = frameParams.y;
-                        initW = frameParams.width;
-                        initH = frameParams.height;
-                        touchX = event.getRawX();
-                        touchY = event.getRawY();
-
-                        // إذا تم لمس الزاوية السفلية اليمنى (مقبض المثلث) -> تفعيل وضع التكبير والتصغير
+                        initX = frameParams.x; initY = frameParams.y;
+                        initW = frameParams.width; initH = frameParams.height;
+                        touchX = event.getRawX(); touchY = event.getRawY();
                         isResizing = (event.getX() > frameParams.width - 90 && event.getY() > frameParams.height - 90);
                         return true;
 
@@ -121,17 +118,14 @@ public class ImageCropPickerService extends Service {
                         float dy = event.getRawY() - touchY;
 
                         if (isResizing) {
-                            // تكبير وتصغير الأبعاد بسلاسة
-                            int newW = Math.max((int) (60 * getResources().getDisplayMetrics().density), initW + (int) dx);
-                            int newH = Math.max((int) (40 * getResources().getDisplayMetrics().density), initH + (int) dy);
+                            int newW = Math.max((int) (50 * getResources().getDisplayMetrics().density), initW + (int) dx);
+                            int newH = Math.max((int) (35 * getResources().getDisplayMetrics().density), initH + (int) dy);
                             frameParams.width = newW;
                             frameParams.height = newH;
                         } else {
-                            // تحريك المستطيل في أي اتجاه
                             frameParams.x = initX + (int) dx;
                             frameParams.y = initY + (int) dy;
                         }
-
                         windowManager.updateViewLayout(cropFrameView, frameParams);
                         updateLabels();
                         return true;
@@ -142,7 +136,6 @@ public class ImageCropPickerService extends Service {
     }
 
     private void setupBoxInteractions() {
-        // سحب صندوق التحكم
         controlBoxView.setOnTouchListener(new View.OnTouchListener() {
             private int initX, initY;
             private float touchX, touchY;
@@ -164,8 +157,40 @@ public class ImageCropPickerService extends Service {
             }
         });
 
-        // تأكيد القص وحفظ الصورة كشرط للأكشن
-        controlBoxView.findViewById(R.id.btnCropConfirm).setOnClickListener(v -> {
+        // التقاط الصورة الحقيقية وقصها فور الضغط على تأكيد ✓
+        controlBoxView.findViewById(R.id.btnCropConfirm).setOnClickListener(v -> captureAndSaveTemplate());
+        controlBoxView.findViewById(R.id.btnCropCancel).setOnClickListener(v -> stopSelf());
+    }
+
+    private void captureAndSaveTemplate() {
+        // إخفاء الواجهة العائمة لحظياً لكي لا تظهر الحدود السماوية في الصورة المقتصة
+        controlBoxView.setVisibility(View.GONE);
+        cropFrameView.setVisibility(View.GONE);
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            String savedPath = null;
+            try {
+                Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+                if (screen != null) {
+                    int cx = Math.max(0, Math.min(frameParams.x, screen.getWidth() - 10));
+                    int cy = Math.max(0, Math.min(frameParams.y, screen.getHeight() - 10));
+                    int cw = Math.min(frameParams.width, screen.getWidth() - cx);
+                    int ch = Math.min(frameParams.height, screen.getHeight() - cy);
+
+                    if (cw > 10 && ch > 10) {
+                        Bitmap cropped = Bitmap.createBitmap(screen, cx, cy, cw, ch);
+                        File file = new File(getFilesDir(), "img_" + System.currentTimeMillis() + ".png");
+                        FileOutputStream fos = new FileOutputStream(file);
+                        cropped.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                        fos.close();
+                        savedPath = file.getAbsolutePath();
+                    }
+                    screen.recycle();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             Intent intent = new Intent("IMAGE_TEMPLATE_CROPPED");
             intent.setPackage(getPackageName());
             intent.putExtra("crop_x", frameParams.x);
@@ -174,11 +199,10 @@ public class ImageCropPickerService extends Service {
             intent.putExtra("crop_h", frameParams.height);
             intent.putExtra("target_x", targetClickX);
             intent.putExtra("target_y", targetClickY);
+            intent.putExtra("image_path", savedPath);
             sendBroadcast(intent);
             stopSelf();
-        });
-
-        controlBoxView.findViewById(R.id.btnCropCancel).setOnClickListener(v -> stopSelf());
+        }, 80);
     }
 
     @Override
