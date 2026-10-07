@@ -104,8 +104,7 @@ public class FloatingWindowService extends Service {
 
                 if (editIndex >= 0 && editIndex < GlobalData.actionList.size()) {
                     Action existing = GlobalData.actionList.get(editIndex);
-                    existing.setX(x);
-                    existing.setY(y);
+                    existing.setX(x); existing.setY(y);
                     existing.setDetail("Click [" + x + ", " + y + "] [C]");
                     updateHudActionCards();
                     openHudBar();
@@ -469,6 +468,9 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
+    /**
+     * نافذة Detect Location مع إصلاح منطق RadioButton الحصري تماماً
+     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -498,14 +500,30 @@ public class FloatingWindowService extends Service {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
 
-        View.OnClickListener selectMode = v -> {
-            rbCaptured.setChecked(v.getId() == R.id.rowLocCaptured || v.getId() == R.id.rbLocCaptured);
-            rbCustom.setChecked(v.getId() == R.id.rowLocCustom || v.getId() == R.id.rbLocCustom);
-            rbFullScreen.setChecked(v.getId() == R.id.rowLocFullScreen || v.getId() == R.id.rbLocFullScreen);
+        // مستمعات حصرية ومتبادلة تضمن إلغاء الخيارات الأخرى فور الضغط على الدائرة أو الصف
+        View.OnClickListener selectCaptured = v -> {
+            rbCaptured.setChecked(true);
+            rbCustom.setChecked(false);
+            rbFullScreen.setChecked(false);
         };
-        dialogView.findViewById(R.id.rowLocCaptured).setOnClickListener(selectMode);
-        dialogView.findViewById(R.id.rowLocCustom).setOnClickListener(selectMode);
-        dialogView.findViewById(R.id.rowLocFullScreen).setOnClickListener(selectMode);
+        dialogView.findViewById(R.id.rowLocCaptured).setOnClickListener(selectCaptured);
+        rbCaptured.setOnClickListener(selectCaptured);
+
+        View.OnClickListener selectCustom = v -> {
+            rbCaptured.setChecked(false);
+            rbCustom.setChecked(true);
+            rbFullScreen.setChecked(false);
+        };
+        dialogView.findViewById(R.id.rowLocCustom).setOnClickListener(selectCustom);
+        rbCustom.setOnClickListener(selectCustom);
+
+        View.OnClickListener selectFullScreen = v -> {
+            rbCaptured.setChecked(false);
+            rbCustom.setChecked(false);
+            rbFullScreen.setChecked(true);
+        };
+        dialogView.findViewById(R.id.rowLocFullScreen).setOnClickListener(selectFullScreen);
+        rbFullScreen.setOnClickListener(selectFullScreen);
 
         btnFrame.setOnClickListener(v -> {
             dialog.dismiss();
@@ -581,7 +599,7 @@ public class FloatingWindowService extends Service {
                                 int clickTargetX = matchCenter.x + action.getOffsetX();
                                 int clickTargetY = matchCenter.y + action.getOffsetY();
                                 executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
-                                Toast.makeText(FloatingWindowService.this, "تم العثور على الصورة في الشاشة والنقر في مركزها!", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(FloatingWindowService.this, "تم العثور على الصورة والنقر في مركزها!", Toast.LENGTH_SHORT).show();
                             } else {
                                 Toast.makeText(FloatingWindowService.this, "الصورة غير موجودة في منطقة الفحص المحددة!", Toast.LENGTH_SHORT).show();
                             }
@@ -697,13 +715,13 @@ public class FloatingWindowService extends Service {
     private double calculateActionSimilarity(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         if ("FULL_SCREEN".equals(mode)) {
-            Point p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), 30.0);
+            Point p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), 25.0);
             if (p != null) {
                 return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
             }
             return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
         } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            Point p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), 30.0);
+            Point p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), 25.0);
             if (p != null) {
                 return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
             }
@@ -712,27 +730,30 @@ public class FloatingWindowService extends Service {
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
+    /**
+     * الدالة الحاسمة: إرجاع مركز الصورة المكتشفة بالضبط (Exact Center)
+     */
     private Point findMatchCenterForAction(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
         double minThresh = action.getSimilarity();
         int tw = template.getWidth();
         int th = template.getHeight();
 
+        Point p = null;
         if ("FULL_SCREEN".equals(mode)) {
-            Point topCorner = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
-            if (topCorner != null) {
-                return new Point(topCorner.x + (tw / 2), topCorner.y + (th / 2));
-            }
+            p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), minThresh);
         } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            Point topCorner = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
-            if (topCorner != null) {
-                return new Point(topCorner.x + (tw / 2), topCorner.y + (th / 2));
-            }
+            p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh);
         } else {
+            // Captured Location
             double sim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
             if (sim >= minThresh) {
-                return new Point(action.getCropX() + (tw / 2), action.getCropY() + (th / 2));
+                p = new Point(action.getCropX(), action.getCropY());
             }
+        }
+
+        if (p != null) {
+            return new Point(p.x + (tw / 2), p.y + (th / 2));
         }
         return null;
     }
@@ -1179,9 +1200,6 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
-    /**
-     * تشغيل الماكرو الموحد: ينقر في مركز الصورة المكتشفة بالضبط أينما وُجدت
-     */
     private void runUnifiedMacro() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -1212,7 +1230,7 @@ public class FloatingWindowService extends Service {
                 if (AutoAccessibilityService.instance != null) {
                     String type = action.getType();
 
-                    // 1. أكشن Click Image: ينقر في مركز الصورة المكتشفة بالضبط في الشاشة
+                    // 1. أكشن Click Image
                     if ("Click Image".equals(type)) {
                         if (action.getImagePath() != null) {
                             Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
@@ -1231,7 +1249,7 @@ public class FloatingWindowService extends Service {
                             }
                         }
                     } 
-                    // 2. أكشن Click (x, y) مع شرط الصورة: إذا كان Mode هو Captured Location يفحص الموضع، وإذا كان Full Screen يمسح الشاشة
+                    // 2. أكشن Click (x, y) مع شرط الصورة
                     else if ("Click (x, y)".equals(type)) {
                         if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
                             boolean conditionMet = false;
