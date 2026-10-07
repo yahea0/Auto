@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- صلاحيات الظهور فوق التطبيقات والإشعارات والخدمات -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -27,7 +26,6 @@
             android:name=".ActionActivity"
             android:exported="false" />
 
-        <!-- محرك النقر الفعلي عبر خدمة الوصول -->
         <service
             android:name=".AutoAccessibilityService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
@@ -40,22 +38,19 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- خدمة الشريط العائم الرئيسي -->
         <service
             android:name=".FloatingWindowService"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="specialUse|mediaProjection"
             android:exported="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Floating control and automation overlay" />
         </service>
 
-        <!-- خدمة التقاط إحداثيات النقر الدائرية -->
         <service
             android:name=".CoordinatePickerService"
             android:exported="false" />
 
-        <!-- خدمة مستطيل التحديد والقص المطاطي لشرط الصورة -->
         <service
             android:name=".ImageCropPickerService"
             android:exported="false" />
