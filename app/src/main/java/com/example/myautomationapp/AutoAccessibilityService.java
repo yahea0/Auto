@@ -34,17 +34,18 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * تنفيذ نقرة حقيقية ومضمونة بمدة 80ms في منتصف الهدف بدقة
+     * تنفيذ نقرة فورية ومحكمة في النقطة الفيزيائية المحددة بالضبط
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
 
         Path path = new Path();
         path.moveTo(x, y);
-        path.lineTo(x, y + 1);
+        path.lineTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 80));
+        // 50ms نبضة نقر سريعة ومثالية تضغط على أي زر دون أن يعتبرها النظام سحباً
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
         dispatchGesture(builder.build(), null, null);
     }
 
