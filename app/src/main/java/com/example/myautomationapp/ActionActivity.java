@@ -4,6 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -39,7 +42,7 @@ public class ActionActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
-        // زر التشغيل
+        // زر التشغيل الذكي مع فحص الشروط والرؤية بالملي
         btnPlay.setOnClickListener(v -> {
             if (GlobalData.actionList.isEmpty()) {
                 Toast.makeText(this, "لا يوجد أكشنات مضافة بعد!", Toast.LENGTH_SHORT).show();
@@ -52,14 +55,52 @@ public class ActionActivity extends AppCompatActivity {
                 return;
             }
 
-            Toast.makeText(this, "جاري تنفيذ الأكشنات تلقائياً...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "جاري تنفيذ الأكشنات مع الفحص الصارم للشروط...", Toast.LENGTH_SHORT).show();
 
             new Thread(() -> {
                 for (Action action : GlobalData.actionList) {
-                    if (AutoAccessibilityService.instance != null) {
+                    if (action.isDisabled()) continue;
+
+                    if (action.getDelayBeforeMs() > 0) {
+                        try { Thread.sleep(action.getDelayBeforeMs()); } catch (InterruptedException ignored) {}
+                    }
+
+                    boolean shouldExecute = true;
+
+                    // التحقق الصارم من شرط الصورة إن وجد
+                    if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
+                        shouldExecute = false;
+                        Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+                        if (screen != null && action.getImagePath() != null) {
+                            Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
+                            if (template != null) {
+                                Point match = VisionEngine.findActionTarget(screen, template, action);
+                                boolean found = (match != null);
+                                shouldExecute = action.isNotAppear() ? !found : found;
+                                template.recycle();
+                            }
+                            screen.recycle();
+                        }
+                    }
+
+                    if (shouldExecute && AutoAccessibilityService.instance != null) {
                         String type = action.getType();
                         if ("Click (x, y)".equals(type)) {
-                            AutoAccessibilityService.instance.click(action.getX(), action.getY());
+                            AutoAccessibilityService.instance.click(action.getX() + action.getOffsetX(), action.getY() + action.getOffsetY());
+                        } else if ("Click Image".equals(type)) {
+                            Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+                            if (screen != null && action.getImagePath() != null) {
+                                Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
+                                if (template != null) {
+                                    Point match = VisionEngine.findActionTarget(screen, template, action);
+                                    if (match != null) {
+                                        AutoAccessibilityService.instance.click(match.x + (template.getWidth() / 2) + action.getOffsetX(),
+                                                                               match.y + (template.getHeight() / 2) + action.getOffsetY());
+                                    }
+                                    template.recycle();
+                                }
+                                screen.recycle();
+                            }
                         } else if ("Swipe".equals(type)) {
                             AutoAccessibilityService.instance.swipe(500, 1200, 500, 400, 400);
                         } else if ("Press Back".equals(type)) {
@@ -74,8 +115,9 @@ public class ActionActivity extends AppCompatActivity {
                             AutoAccessibilityService.instance.takeScreenshot();
                         }
                     }
+
                     try {
-                        Thread.sleep(action.getDelayMs());
+                        Thread.sleep(action.getDelayAfterMs() > 0 ? action.getDelayAfterMs() : 500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -126,7 +168,9 @@ public class ActionActivity extends AppCompatActivity {
         // 2. Click Image
         dialogView.findViewById(R.id.btnClickImage).setOnClickListener(v -> {
             dialog.dismiss();
-            Toast.makeText(this, "Click Image (مربع القص)", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(ActionActivity.this, ImageCropPickerService.class);
+            intent.putExtra("is_click_image", true);
+            startService(intent);
         });
 
         // 3. Click Text
