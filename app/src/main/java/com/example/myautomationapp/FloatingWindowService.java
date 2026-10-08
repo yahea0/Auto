@@ -222,7 +222,6 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, alternateTemplateReceiver, new IntentFilter("ALTERNATE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال لقطة العلامة المميزة المرجعية Landmark Anchor
         anchorReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -240,7 +239,7 @@ public class FloatingWindowService extends Service {
                     if (currentActionForAnchor != null) {
                         showIndividualTemplateSettingsDialog(currentActionForAnchor, currentTargetTemplateForAnchor);
                     }
-                    Toast.makeText(FloatingWindowService.this, "تم ربط العلامة المميزة بنجاح تام!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FloatingWindowService.this, "تم ربط وحفظ العلامة المميزة بنجاح!", Toast.LENGTH_SHORT).show();
                 }
             }
         };
@@ -593,6 +592,9 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
+    /**
+     * نافذة Detect Location مع إصلاح الراديو بوتون ليعمل حصر التحديد بنسبة 100%
+     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -613,36 +615,23 @@ public class FloatingWindowService extends Service {
         ImageView btnFrame = dialogView.findViewById(R.id.btnPickCustomRegionFrame);
 
         String currentMode = action.getDetectLocationMode();
-        rbCaptured.setChecked("CAPTURED".equals(currentMode));
-        rbCustom.setChecked("CUSTOM".equals(currentMode));
-        rbFullScreen.setChecked("FULL_SCREEN".equals(currentMode));
+        setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, currentMode);
 
         tvCapturedDetails.setText("[" + action.getCropX() + ", " + action.getCropY() + ", " + action.getCropW() + ", " + action.getCropH() + "]");
         if (action.getCustomRegionW() > 0) {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
 
-        View.OnClickListener selectCaptured = v -> {
-            rbCaptured.setChecked(true);
-            rbCustom.setChecked(false);
-            rbFullScreen.setChecked(false);
-        };
+        // مستمعات حصرية مؤكدة ومباشرة للدوائر والنصوص
+        View.OnClickListener selectCaptured = v -> setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, "CAPTURED");
         dialogView.findViewById(R.id.rowLocCaptured).setOnClickListener(selectCaptured);
         rbCaptured.setOnClickListener(selectCaptured);
 
-        View.OnClickListener selectCustom = v -> {
-            rbCaptured.setChecked(false);
-            rbCustom.setChecked(true);
-            rbFullScreen.setChecked(false);
-        };
+        View.OnClickListener selectCustom = v -> setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, "CUSTOM");
         dialogView.findViewById(R.id.rowLocCustom).setOnClickListener(selectCustom);
         rbCustom.setOnClickListener(selectCustom);
 
-        View.OnClickListener selectFullScreen = v -> {
-            rbCaptured.setChecked(false);
-            rbCustom.setChecked(false);
-            rbFullScreen.setChecked(true);
-        };
+        View.OnClickListener selectFullScreen = v -> setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, "FULL_SCREEN");
         dialogView.findViewById(R.id.rowLocFullScreen).setOnClickListener(selectFullScreen);
         rbFullScreen.setOnClickListener(selectFullScreen);
 
@@ -670,6 +659,12 @@ public class FloatingWindowService extends Service {
 
         dialogView.findViewById(R.id.btnLocCancel).setOnClickListener(v -> dialog.dismiss());
         dialog.show();
+    }
+
+    private void setDetectLocationRadio(RadioButton rbCap, RadioButton rbCust, RadioButton rbFull, String mode) {
+        rbCap.setChecked("CAPTURED".equals(mode));
+        rbCust.setChecked("CUSTOM".equals(mode));
+        rbFull.setChecked("FULL_SCREEN".equals(mode));
     }
 
     private void showClickImageActionMenu(Action action, int index) {
@@ -713,14 +708,14 @@ public class FloatingWindowService extends Service {
                 new Handler(Looper.getMainLooper()).post(() -> {
                     openHudBar();
                     if (screen != null) {
-                        Point target = findMatchCenterForAction(screen, action);
-                        if (target != null) {
-                            int clickTargetX = target.x + action.getOffsetX();
-                            int clickTargetY = target.y + action.getOffsetY();
+                        Point matchCenter = findMatchCenterForAction(screen, action);
+                        if (matchCenter != null) {
+                            int clickTargetX = matchCenter.x + action.getOffsetX();
+                            int clickTargetY = matchCenter.y + action.getOffsetY();
                             executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
-                            Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر في مركزه بنجاح!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر في مركزه بالضبط!", Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة أو شروطه لم تكتمل!", Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
@@ -827,7 +822,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم نسخ الشرط!", Toast.LENGTH_SHORT).show();
         });
 
-        // فتح مدير القوالب المتعددة
         TextView tvCount = dialogView.findViewById(R.id.tvAlternateTemplatesCount);
         if (tvCount != null) {
             tvCount.setText("Manage Templates (x" + action.getTemplatePool().size() + " Trained)");
@@ -912,9 +906,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * نافذة إعدادات القالب الفردية مع زر الفحص اللحظي للعلامة وحساب الإزاحة من أعلى يسار الهدف
-     */
     private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
         currentActionForAnchor = action;
         currentTargetTemplateForAnchor = item;
@@ -954,7 +945,6 @@ public class FloatingWindowService extends Service {
         Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
         swLevel.setChecked(item.isIgnoreLevelBadge());
 
-        // قسم العلامة المميزة المرجعية Landmark Anchor
         Switch swAnchor = dialogView.findViewById(R.id.swEnableAnchor);
         swAnchor.setChecked(item.hasAnchor());
 
@@ -982,19 +972,17 @@ public class FloatingWindowService extends Service {
             tvAnchorBadge.setVisibility(View.GONE);
         }
 
-        // التقاط العلامة من موضع الصفر المرجعي للهدف (أعلى يسار الهدف)
         Button btnCaptureAnchor = dialogView.findViewById(R.id.btnCaptureLandmarkAnchor);
         btnCaptureAnchor.setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
             Intent intent = new Intent(this, ImageCropPickerService.class);
             intent.putExtra("is_anchor_capture", true);
-            intent.putExtra("parent_x", action.getCropX()); // الصفر المرجعي الصحيح!
+            intent.putExtra("parent_x", action.getCropX());
             intent.putExtra("parent_y", action.getCropY());
             startService(intent);
         });
 
-        // زر الفحص اللحظي المباشر للعلامة المميزة
         if (btnTestAnchor != null) {
             btnTestAnchor.setOnClickListener(v -> {
                 if (!item.hasAnchor() || item.getAnchorImagePath() == null) {
@@ -1010,8 +998,8 @@ public class FloatingWindowService extends Service {
                         if (screen != null) {
                             Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
                             if (aBmp != null) {
-                                double sim = VisionEngine.getAnchorMatchSimilarity(screen, aBmp, action.getCropX(), action.getCropY(), item.getAnchorRelativeX(), item.getAnchorRelativeY(), item.getAnchorTolerance());
-                                Toast.makeText(FloatingWindowService.this, "فحص العلامة: نسبة التطابق الحالية = " + String.format("%.1f", sim) + "% (المطلوب: " + item.getAnchorSimilarity() + "%)", Toast.LENGTH_LONG).show();
+                                boolean ok = VisionEngine.isAnchorPresentOnScreen(screen, aBmp, action.getCropX() + item.getAnchorRelativeX(), action.getCropY() + item.getAnchorRelativeY(), item.getAnchorTolerance(), item.getAnchorSimilarity());
+                                Toast.makeText(FloatingWindowService.this, ok ? "✅ العلامة موجودة ومطابقة على الشاشة بنجاح!" : "❌ لم يتم العثور على العلامة على الشاشة!", Toast.LENGTH_LONG).show();
                             }
                         }
                     });
@@ -1122,7 +1110,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * رصد الهدف الحقيقي مع القفل المكاني ومطابقة العلامة المميزة المرجعية الإلزامية في لعبة الفاتحون
+     * إيجاد موضع الهدف الحقيقي والتأكد الإلزامي من وجود العلامة المميزة على الشاشة مع حساب المركز بدقة
      */
     private Point findMatchCenterForAction(Bitmap screen, Action action) {
         if (screen == null) return null;
@@ -1140,28 +1128,36 @@ public class FloatingWindowService extends Service {
             int tolerance = item.getColorTolerance();
             boolean ignoreBadge = item.isIgnoreLevelBadge();
 
-            boolean hasAnchor = item.hasAnchor();
-            Bitmap anchorBmp = (hasAnchor && item.getAnchorImagePath() != null) ? BitmapFactory.decodeFile(item.getAnchorImagePath()) : null;
-            int relAnchorX = item.getAnchorRelativeX();
-            int relAnchorY = item.getAnchorRelativeY();
-            int anchorTol = item.getAnchorTolerance();
-            double anchorThresh = item.getAnchorSimilarity();
-
-            Point found = null;
-            if ("FULL_SCREEN".equals(mode)) {
-                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, anchorBmp, 0, 0, screen.getWidth(), screen.getHeight(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge, hasAnchor, relAnchorX, relAnchorY, anchorTol, anchorThresh);
-            } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, anchorBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge, hasAnchor, relAnchorX, relAnchorY, anchorTol, anchorThresh);
-            } else {
-                double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
-                if (sim >= minThresh) {
-                    if (!hasAnchor || VisionEngine.verifyAnchorAtRelativeOffset(screen, anchorBmp, action.getCropX(), action.getCropY(), relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
-                        found = new Point(action.getCropX(), action.getCropY());
+            // فحص العلامة المميزة / المشهد المرجعي: إذا كانت غير موجودة يُلغى النقر تماماً!
+            if (item.hasAnchor() && item.getAnchorImagePath() != null) {
+                Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
+                if (aBmp != null) {
+                    boolean anchorPresent = VisionEngine.isAnchorPresentOnScreen(
+                            screen, aBmp,
+                            action.getCropX() + item.getAnchorRelativeX(),
+                            action.getCropY() + item.getAnchorRelativeY(),
+                            item.getAnchorTolerance(), item.getAnchorSimilarity()
+                    );
+                    if (!anchorPresent) {
+                        continue; // العلامة غير موجودة على الشاشة! ممنوع النقر!
                     }
                 }
             }
 
+            Point found = null;
+            if ("FULL_SCREEN".equals(mode)) {
+                found = VisionEngine.scanAndFindTemplate(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, tolerance, ignoreBadge);
+            } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
+                found = VisionEngine.scanAndFindTemplate(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh, tolerance, ignoreBadge);
+            } else {
+                double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
+                if (sim >= minThresh) {
+                    found = new Point(action.getCropX(), action.getCropY());
+                }
+            }
+
             if (found != null) {
+                // النقر في قلب ومركز الهدف بالبكسل الواحد
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1662,10 +1658,10 @@ public class FloatingWindowService extends Service {
                         if ("Click Image".equals(type)) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null) {
-                                Point targetCenter = findMatchCenterForAction(screen, action);
-                                if (targetCenter != null) {
-                                    int clickTargetX = targetCenter.x + action.getOffsetX();
-                                    int clickTargetY = targetCenter.y + action.getOffsetY();
+                                Point matchCenter = findMatchCenterForAction(screen, action);
+                                if (matchCenter != null) {
+                                    int clickTargetX = matchCenter.x + action.getOffsetX();
+                                    int clickTargetY = matchCenter.y + action.getOffsetY();
                                     executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
                                 }
                             }
@@ -1674,8 +1670,8 @@ public class FloatingWindowService extends Service {
                                 boolean conditionMet = false;
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (screen != null) {
-                                    Point targetCenter = findMatchCenterForAction(screen, action);
-                                    conditionMet = (targetCenter != null);
+                                    Point matchCenter = findMatchCenterForAction(screen, action);
+                                    conditionMet = (matchCenter != null);
                                     if (action.isNotAppear()) conditionMet = !conditionMet;
                                 }
                                 if (!conditionMet) continue;
