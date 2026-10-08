@@ -182,7 +182,7 @@
                     android:layout_marginStart="4dp" />
             </LinearLayout>
 
-            <!-- 5. قسم العلامة المميزة المرجعية (Landmark Anchor) مع صندوق المعاينة الحقيقي -->
+            <!-- 5. قسم العلامة المميزة المرجعية (Landmark Anchor) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -289,7 +289,7 @@
                     android:paddingStart="6dp"
                     android:layout_marginBottom="10dp" />
 
-                <!-- أزرار التقاط وحذف العلامة المميزة -->
+                <!-- أزرار التقاط وفحص وحذف العلامة المميزة -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="38dp"
@@ -300,11 +300,23 @@
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:text="📷 التقاط العلامة بالمستطيل"
+                        android:text="📷 التقاط بالمستطيل"
                         android:backgroundTint="#0284C7"
                         android:textColor="#FFFFFF"
                         android:textSize="11sp"
                         android:textStyle="bold" />
+
+                    <!-- زر الفحص اللحظي للعلامة المميزة للتأكد من رصدها مباشرة -->
+                    <Button
+                        android:id="@+id/btnTestLandmarkAnchor"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="🔍 فحص"
+                        android:backgroundTint="#0369A1"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:layout_marginStart="4dp" />
 
                     <Button
                         android:id="@+id/btnDeleteAnchor"
@@ -313,7 +325,7 @@
                         android:text="🗑️"
                         android:backgroundTint="#EF4444"
                         android:textColor="#FFFFFF"
-                        android:layout_marginStart="6dp" />
+                        android:layout_marginStart="4dp" />
                 </LinearLayout>
 
             </LinearLayout>
