@@ -40,6 +40,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -65,14 +66,10 @@ public class FloatingWindowService extends Service {
     private BroadcastReceiver clickImageReceiver;
     private BroadcastReceiver customRegionReceiver;
     private BroadcastReceiver alternateTemplateReceiver;
-    private BroadcastReceiver anchorReceiver;
 
     private static Action inAppClipboardAction = null;
     private Action currentEditingRegionAction = null;
     private Action currentTargetForAlternateTemplate = null;
-    
-    private Action currentActionForAnchor = null;
-    private TemplateItem currentTargetTemplateForAnchor = null;
 
     @Nullable
     @Override
@@ -221,29 +218,6 @@ public class FloatingWindowService extends Service {
             }
         };
         ContextCompat.registerReceiver(this, alternateTemplateReceiver, new IntentFilter("ALTERNATE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
-
-        anchorReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (currentTargetTemplateForAnchor != null) {
-                    String anchorPath = intent.getStringExtra("anchor_path");
-                    int relX = intent.getIntExtra("rel_x", 0);
-                    int relY = intent.getIntExtra("rel_y", 0);
-
-                    currentTargetTemplateForAnchor.setHasAnchor(true);
-                    currentTargetTemplateForAnchor.setAnchorImagePath(anchorPath);
-                    currentTargetTemplateForAnchor.setAnchorRelativeX(relX);
-                    currentTargetTemplateForAnchor.setAnchorRelativeY(relY);
-
-                    openHudBar();
-                    if (currentActionForAnchor != null) {
-                        showIndividualTemplateSettingsDialog(currentActionForAnchor, currentTargetTemplateForAnchor);
-                    }
-                    Toast.makeText(FloatingWindowService.this, "تم ربط وحفظ العلامة المميزة بنجاح!", Toast.LENGTH_SHORT).show();
-                }
-            }
-        };
-        ContextCompat.registerReceiver(this, anchorReceiver, new IntentFilter("ANCHOR_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void safeInitViews() {
@@ -592,9 +566,6 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
-    /**
-     * نافذة Detect Location مع إصلاح الراديو بوتون ليعمل حصر التحديد بنسبة 100%
-     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -622,7 +593,6 @@ public class FloatingWindowService extends Service {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
 
-        // مستمعات حصرية مؤكدة ومباشرة للدوائر والنصوص
         View.OnClickListener selectCaptured = v -> setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, "CAPTURED");
         dialogView.findViewById(R.id.rowLocCaptured).setOnClickListener(selectCaptured);
         rbCaptured.setOnClickListener(selectCaptured);
@@ -907,9 +877,6 @@ public class FloatingWindowService extends Service {
     }
 
     private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
-        currentActionForAnchor = action;
-        currentTargetTemplateForAnchor = item;
-
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_template_settings, null);
 
@@ -944,78 +911,6 @@ public class FloatingWindowService extends Service {
 
         Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
         swLevel.setChecked(item.isIgnoreLevelBadge());
-
-        Switch swAnchor = dialogView.findViewById(R.id.swEnableAnchor);
-        swAnchor.setChecked(item.hasAnchor());
-
-        ImageView ivAnchorThumb = dialogView.findViewById(R.id.ivAnchorThumbPreview);
-        TextView tvAnchorPlaceholder = dialogView.findViewById(R.id.tvAnchorEmptyPlaceholder);
-        TextView tvAnchorBadge = dialogView.findViewById(R.id.tvAnchorOffsetBadge);
-        EditText etAnchorSim = dialogView.findViewById(R.id.etAnchorSim);
-        EditText etAnchorTol = dialogView.findViewById(R.id.etAnchorTolerance);
-        Button btnDeleteAnchor = dialogView.findViewById(R.id.btnDeleteAnchor);
-        Button btnTestAnchor = dialogView.findViewById(R.id.btnTestLandmarkAnchor);
-
-        etAnchorSim.setText(String.valueOf(item.getAnchorSimilarity()));
-        etAnchorTol.setText(String.valueOf(item.getAnchorTolerance()));
-
-        if (item.hasAnchor() && item.getAnchorImagePath() != null) {
-            Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
-            if (aBmp != null) {
-                ivAnchorThumb.setImageBitmap(aBmp);
-                tvAnchorPlaceholder.setVisibility(View.GONE);
-                tvAnchorBadge.setVisibility(View.VISIBLE);
-                tvAnchorBadge.setText("[Offset: " + item.getAnchorRelativeX() + ", " + item.getAnchorRelativeY() + "]");
-            }
-        } else {
-            tvAnchorPlaceholder.setVisibility(View.VISIBLE);
-            tvAnchorBadge.setVisibility(View.GONE);
-        }
-
-        Button btnCaptureAnchor = dialogView.findViewById(R.id.btnCaptureLandmarkAnchor);
-        btnCaptureAnchor.setOnClickListener(v -> {
-            dialog.dismiss();
-            closeHudBar();
-            Intent intent = new Intent(this, ImageCropPickerService.class);
-            intent.putExtra("is_anchor_capture", true);
-            intent.putExtra("parent_x", action.getCropX());
-            intent.putExtra("parent_y", action.getCropY());
-            startService(intent);
-        });
-
-        if (btnTestAnchor != null) {
-            btnTestAnchor.setOnClickListener(v -> {
-                if (!item.hasAnchor() || item.getAnchorImagePath() == null) {
-                    Toast.makeText(this, "التقط العلامة أولاً قبل فحصها!", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                closeHudBar();
-                new Thread(() -> {
-                    try { Thread.sleep(120); } catch (Exception ignored) {}
-                    Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-                    new Handler(Looper.getMainLooper()).post(() -> {
-                        openHudBar();
-                        if (screen != null) {
-                            Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
-                            if (aBmp != null) {
-                                boolean ok = VisionEngine.isAnchorPresentOnScreen(screen, aBmp, action.getCropX() + item.getAnchorRelativeX(), action.getCropY() + item.getAnchorRelativeY(), item.getAnchorTolerance(), item.getAnchorSimilarity());
-                                Toast.makeText(FloatingWindowService.this, ok ? "✅ العلامة موجودة ومطابقة على الشاشة بنجاح!" : "❌ لم يتم العثور على العلامة على الشاشة!", Toast.LENGTH_LONG).show();
-                            }
-                        }
-                    });
-                }).start();
-            });
-        }
-
-        btnDeleteAnchor.setOnClickListener(v -> {
-            item.setHasAnchor(false);
-            item.setAnchorImagePath(null);
-            swAnchor.setChecked(false);
-            ivAnchorThumb.setImageBitmap(null);
-            tvAnchorPlaceholder.setVisibility(View.VISIBLE);
-            tvAnchorBadge.setVisibility(View.GONE);
-            Toast.makeText(this, "تم حذف العلامة المرجعية", Toast.LENGTH_SHORT).show();
-        });
 
         dialogView.findViewById(R.id.btnReCropRubberFrame).setOnClickListener(v -> {
             dialog.dismiss();
@@ -1054,12 +949,6 @@ public class FloatingWindowService extends Service {
             item.setSimilarity(Math.max(1, Math.min(100, sim)));
             item.setColorTolerance(Math.max(10, Math.min(80, tol)));
             item.setIgnoreLevelBadge(swLevel.isChecked());
-            item.setHasAnchor(swAnchor.isChecked());
-
-            String aSVal = etAnchorSim.getText().toString();
-            String aTVal = etAnchorTol.getText().toString();
-            item.setAnchorSimilarity(aSVal.isEmpty() ? 75 : Integer.parseInt(aSVal));
-            item.setAnchorTolerance(aTVal.isEmpty() ? 35 : Integer.parseInt(aTVal));
 
             if (masterBmp != null && (trimOffsets[0] != 0 || trimOffsets[1] != 0)) {
                 try {
@@ -1076,7 +965,7 @@ public class FloatingWindowService extends Service {
 
             updateHudActionCards();
             dialog.dismiss();
-            Toast.makeText(this, "تم حفظ الإعدادات وقفل العلامة بنجاح!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم حفظ الإعدادات وقص البكسل بنجاح!", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
@@ -1110,7 +999,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * إيجاد موضع الهدف الحقيقي والتأكد الإلزامي من وجود العلامة المميزة على الشاشة مع حساب المركز بدقة
+     * الدالة الوحيدة لإيجاد مركز الهدف بدقة تامة
      */
     private Point findMatchCenterForAction(Bitmap screen, Action action) {
         if (screen == null) return null;
@@ -1128,22 +1017,6 @@ public class FloatingWindowService extends Service {
             int tolerance = item.getColorTolerance();
             boolean ignoreBadge = item.isIgnoreLevelBadge();
 
-            // فحص العلامة المميزة / المشهد المرجعي: إذا كانت غير موجودة يُلغى النقر تماماً!
-            if (item.hasAnchor() && item.getAnchorImagePath() != null) {
-                Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
-                if (aBmp != null) {
-                    boolean anchorPresent = VisionEngine.isAnchorPresentOnScreen(
-                            screen, aBmp,
-                            action.getCropX() + item.getAnchorRelativeX(),
-                            action.getCropY() + item.getAnchorRelativeY(),
-                            item.getAnchorTolerance(), item.getAnchorSimilarity()
-                    );
-                    if (!anchorPresent) {
-                        continue; // العلامة غير موجودة على الشاشة! ممنوع النقر!
-                    }
-                }
-            }
-
             Point found = null;
             if ("FULL_SCREEN".equals(mode)) {
                 found = VisionEngine.scanAndFindTemplate(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, tolerance, ignoreBadge);
@@ -1157,7 +1030,6 @@ public class FloatingWindowService extends Service {
             }
 
             if (found != null) {
-                // النقر في قلب ومركز الهدف بالبكسل الواحد
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1617,6 +1489,9 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
+    /**
+     * تشغيل الماكرو المستمر: مسح سريع ومباشر والنقر في مركز الهدف
+     */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -1658,10 +1533,10 @@ public class FloatingWindowService extends Service {
                         if ("Click Image".equals(type)) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null) {
-                                Point matchCenter = findMatchCenterForAction(screen, action);
-                                if (matchCenter != null) {
-                                    int clickTargetX = matchCenter.x + action.getOffsetX();
-                                    int clickTargetY = matchCenter.y + action.getOffsetY();
+                                Point targetCenter = findMatchCenterForAction(screen, action);
+                                if (targetCenter != null) {
+                                    int clickTargetX = targetCenter.x + action.getOffsetX();
+                                    int clickTargetY = targetCenter.y + action.getOffsetY();
                                     executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
                                 }
                             }
@@ -1670,8 +1545,8 @@ public class FloatingWindowService extends Service {
                                 boolean conditionMet = false;
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (screen != null) {
-                                    Point matchCenter = findMatchCenterForAction(screen, action);
-                                    conditionMet = (matchCenter != null);
+                                    Point targetCenter = findMatchCenterForAction(screen, action);
+                                    conditionMet = (targetCenter != null);
                                     if (action.isNotAppear()) conditionMet = !conditionMet;
                                 }
                                 if (!conditionMet) continue;
@@ -1761,7 +1636,6 @@ public class FloatingWindowService extends Service {
         if (clickImageReceiver != null) try { unregisterReceiver(clickImageReceiver); } catch (Exception ignored) {}
         if (customRegionReceiver != null) try { unregisterReceiver(customRegionReceiver); } catch (Exception ignored) {}
         if (alternateTemplateReceiver != null) try { unregisterReceiver(alternateTemplateReceiver); } catch (Exception ignored) {}
-        if (anchorReceiver != null) try { unregisterReceiver(anchorReceiver); } catch (Exception ignored) {}
         if (floatingView != null && windowManager != null) try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
         if (popupMenuView != null && windowManager != null) try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
         if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
