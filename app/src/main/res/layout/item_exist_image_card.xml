@@ -1,21 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="64dp"
+    android:layout_height="70dp"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:background="#2E2E2E"
+    android:background="#2C2C2C"
     android:padding="8dp"
-    android:layout_marginBottom="6dp">
+    android:layout_marginBottom="8dp">
 
-    <!-- معاينة الصورة الحقيقية المقصوصة (Thumbnail) -->
+    <!-- معاينة الصورة المصغرة الحقيقية -->
     <ImageView
         android:id="@+id/ivExistThumbPreview"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
         android:background="#1E1E1E"
         android:scaleType="centerCrop" />
 
+    <!-- بيانات القالب -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -27,7 +29,7 @@
             android:id="@+id/tvExistImageName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="img_1.png"
+            android:text="Template_1"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -36,9 +38,19 @@
             android:id="@+id/tvExistImageDimensions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="[275 x 188 px]"
+            android:text="[100 x 100 px]"
             android:textColor="#00E5FF"
             android:textSize="11sp" />
     </LinearLayout>
+
+    <!-- زر حذف هذا القالب المستقل 🗑️ -->
+    <ImageView
+        android:id="@+id/btnDeleteTemplateItem"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:padding="6dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        app:tint="#FF5252" />
 
 </LinearLayout>
