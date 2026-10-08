@@ -40,6 +40,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -260,7 +261,7 @@ public class FloatingWindowService extends Service {
         stopButtonView = LayoutInflater.from(themedContext).inflate(R.layout.floating_stop_button, null);
         stopParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                layoutType, flags, PixelFormat.TRANSLENT);
+                layoutType, flags, PixelFormat.TRANSLUCENT);
         stopParams.gravity = Gravity.BOTTOM | Gravity.START;
         stopParams.x = 40;
         stopParams.y = 100;
@@ -1052,7 +1053,6 @@ public class FloatingWindowService extends Service {
             );
 
             if (found != null) {
-                // دائماً المركز في قلب الهدف بالبكسل الواحد
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1513,7 +1513,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو المستمر: مسح هرمي فائق السرعة والنقر في قلب الهدف بالضبط
+     * تشغيل الماكرو المستمر: مسح سريع ومباشر والنقر في مركز الهدف
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
