@@ -71,7 +71,6 @@ public class FloatingWindowService extends Service {
     private Action currentEditingRegionAction = null;
     private Action currentTargetForAlternateTemplate = null;
     
-    // حفظ مؤشر الهدف والقالب لإعادة فتح نافذة الإعدادات فوراً بعد التقاط العلامة المميزة
     private Action currentActionForAnchor = null;
     private TemplateItem currentTargetTemplateForAnchor = null;
 
@@ -223,7 +222,7 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, alternateTemplateReceiver, new IntentFilter("ALTERNATE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال لقطة العلامة المميزة وإعادة فتح نافذة الإعدادات فوراً مع عرض الصورة
+        // استقبال لقطة العلامة المميزة المرجعية Landmark Anchor
         anchorReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -238,11 +237,10 @@ public class FloatingWindowService extends Service {
                     currentTargetTemplateForAnchor.setAnchorRelativeY(relY);
 
                     openHudBar();
-                    // إعادة فتح نافذة الإعدادات فوراً مع إظهار صورة العلامة في الصندوق!
                     if (currentActionForAnchor != null) {
                         showIndividualTemplateSettingsDialog(currentActionForAnchor, currentTargetTemplateForAnchor);
                     }
-                    Toast.makeText(FloatingWindowService.this, "تم التقاط العلامة المرجعية بنجاح وعرض صورتها!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FloatingWindowService.this, "تم ربط العلامة المميزة بنجاح تام!", Toast.LENGTH_SHORT).show();
                 }
             }
         };
@@ -915,7 +913,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * نافذة إعدادات القالب: مع صندوق المعاينة الحية المباشرة للعلامة المرجعية Landmark Anchor
+     * نافذة إعدادات القالب الفردية مع زر الفحص اللحظي للعلامة وحساب الإزاحة من أعلى يسار الهدف
      */
     private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
         currentActionForAnchor = action;
@@ -956,7 +954,7 @@ public class FloatingWindowService extends Service {
         Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
         swLevel.setChecked(item.isIgnoreLevelBadge());
 
-        // قسم العلامة المميزة المرجعية Landmark Anchor مع صندوق المعاينة الحقيقي
+        // قسم العلامة المميزة المرجعية Landmark Anchor
         Switch swAnchor = dialogView.findViewById(R.id.swEnableAnchor);
         swAnchor.setChecked(item.hasAnchor());
 
@@ -966,11 +964,11 @@ public class FloatingWindowService extends Service {
         EditText etAnchorSim = dialogView.findViewById(R.id.etAnchorSim);
         EditText etAnchorTol = dialogView.findViewById(R.id.etAnchorTolerance);
         Button btnDeleteAnchor = dialogView.findViewById(R.id.btnDeleteAnchor);
+        Button btnTestAnchor = dialogView.findViewById(R.id.btnTestLandmarkAnchor);
 
         etAnchorSim.setText(String.valueOf(item.getAnchorSimilarity()));
         etAnchorTol.setText(String.valueOf(item.getAnchorTolerance()));
 
-        // عرض صورة العلامة المميزة الحقيقية في الصندوق مباشرة إذا كانت ملتقطة!
         if (item.hasAnchor() && item.getAnchorImagePath() != null) {
             Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
             if (aBmp != null) {
@@ -984,19 +982,43 @@ public class FloatingWindowService extends Service {
             tvAnchorBadge.setVisibility(View.GONE);
         }
 
-        // زر التقاط العلامة المميزة بالمستطيل
+        // التقاط العلامة من موضع الصفر المرجعي للهدف (أعلى يسار الهدف)
         Button btnCaptureAnchor = dialogView.findViewById(R.id.btnCaptureLandmarkAnchor);
         btnCaptureAnchor.setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
             Intent intent = new Intent(this, ImageCropPickerService.class);
             intent.putExtra("is_anchor_capture", true);
-            intent.putExtra("parent_x", action.getX());
-            intent.putExtra("parent_y", action.getY());
+            intent.putExtra("parent_x", action.getCropX()); // الصفر المرجعي الصحيح!
+            intent.putExtra("parent_y", action.getCropY());
             startService(intent);
         });
 
-        // زر حذف العلامة المميزة
+        // زر الفحص اللحظي المباشر للعلامة المميزة
+        if (btnTestAnchor != null) {
+            btnTestAnchor.setOnClickListener(v -> {
+                if (!item.hasAnchor() || item.getAnchorImagePath() == null) {
+                    Toast.makeText(this, "التقط العلامة أولاً قبل فحصها!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                closeHudBar();
+                new Thread(() -> {
+                    try { Thread.sleep(120); } catch (Exception ignored) {}
+                    Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        openHudBar();
+                        if (screen != null) {
+                            Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
+                            if (aBmp != null) {
+                                double sim = VisionEngine.getAnchorMatchSimilarity(screen, aBmp, action.getCropX(), action.getCropY(), item.getAnchorRelativeX(), item.getAnchorRelativeY(), item.getAnchorTolerance());
+                                Toast.makeText(FloatingWindowService.this, "فحص العلامة: نسبة التطابق الحالية = " + String.format("%.1f", sim) + "% (المطلوب: " + item.getAnchorSimilarity() + "%)", Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+                }).start();
+            });
+        }
+
         btnDeleteAnchor.setOnClickListener(v -> {
             item.setHasAnchor(false);
             item.setAnchorImagePath(null);
@@ -1007,7 +1029,6 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم حذف العلامة المرجعية", Toast.LENGTH_SHORT).show();
         });
 
-        // زر إعادة فتح المستطيل المطاطي لتأطير الصورة يدوياً
         dialogView.findViewById(R.id.btnReCropRubberFrame).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -1016,7 +1037,6 @@ public class FloatingWindowService extends Service {
             startService(intent);
         });
 
-        // أزرار تعديل البكسل (+/- 1px) العكسية
         dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> {
             trimOffsets[0] = Math.max(-masterBmp.getWidth() + 15, trimOffsets[0] - 1);
             updateTrimLivePreview(masterBmp, trimOffsets[0], trimOffsets[1], ivLivePreview, tvLiveDim);
