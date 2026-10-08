@@ -40,7 +40,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -596,6 +595,7 @@ public class FloatingWindowService extends Service {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
 
+        // مستمعات حصرية مؤكدة ومباشرة للدوائر والنصوص
         View.OnClickListener selectCaptured = v -> setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, "CAPTURED");
         dialogView.findViewById(R.id.rowLocCaptured).setOnClickListener(selectCaptured);
         rbCaptured.setOnClickListener(selectCaptured);
@@ -968,7 +968,7 @@ public class FloatingWindowService extends Service {
 
             updateHudActionCards();
             dialog.dismiss();
-            Toast.makeText(this, "تم حفظ الإعدادات وقص البكسل بنجاح!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم حفظ الإعدادات بنجاح!", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
@@ -993,17 +993,17 @@ public class FloatingWindowService extends Service {
             searchW = action.getCustomRegionW();
             searchH = action.getCustomRegionH();
         } else if ("CAPTURED".equals(mode)) {
-            searchX = Math.max(0, action.getCropX() - 20);
-            searchY = Math.max(0, action.getCropY() - 20);
-            searchW = action.getCropW() + 40;
-            searchH = action.getCropH() + 40;
+            searchX = Math.max(0, action.getCropX() - 25);
+            searchY = Math.max(0, action.getCropY() - 25);
+            searchW = action.getCropW() + 50;
+            searchH = action.getCropH() + 50;
         }
 
         Point p = VisionEngine.scanAndFindTemplate(
                 screen, template,
                 searchX, searchY, searchW, searchH,
                 action.getCropX(), action.getCropY(),
-                20.0, 35, false
+                20.0, 30, false
         );
 
         if (p != null) {
@@ -1053,6 +1053,7 @@ public class FloatingWindowService extends Service {
             );
 
             if (found != null) {
+                // النقر دائماً في قلب ومركز الهدف بالبكسل الواحد
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1513,7 +1514,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو المستمر: مسح سريع ومباشر والنقر في مركز الهدف
+     * تشغيل الماكرو المستمر: مسح هرمي فائق السرعة والنقر في قلب الهدف بالضبط
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
