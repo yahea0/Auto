@@ -31,7 +31,9 @@ public class ImageCropPickerService extends Service {
     private int targetClickX, targetClickY;
     private boolean isStandaloneClickImage = false;
     private boolean isCustomRegionPicker = false;
-    private boolean isAlternateTemplate = false; // قص لقطة زوم إضافية لنفس المعسكر
+    private boolean isAlternateTemplate = false;
+    private boolean isAnchorCapture = false; // التقاط علامة مميزة مرجعية
+    private int parentTargetX, parentTargetY;
 
     @Nullable
     @Override
@@ -45,6 +47,9 @@ public class ImageCropPickerService extends Service {
             isStandaloneClickImage = intent.getBooleanExtra("is_click_image", false);
             isCustomRegionPicker = intent.getBooleanExtra("is_custom_region", false);
             isAlternateTemplate = intent.getBooleanExtra("is_alternate_template", false);
+            isAnchorCapture = intent.getBooleanExtra("is_anchor_capture", false);
+            parentTargetX = intent.getIntExtra("parent_x", 500);
+            parentTargetY = intent.getIntExtra("parent_y", 1000);
         }
         return START_NOT_STICKY;
     }
@@ -75,7 +80,7 @@ public class ImageCropPickerService extends Service {
         boxParams.y = (int) (60 * dm.density);
 
         cropFrameView = LayoutInflater.from(themedContext).inflate(R.layout.crop_frame_layout, null);
-        int initW = (int) (160 * dm.density);
+        int initW = (int) (140 * dm.density);
         int initH = (int) (90 * dm.density);
 
         frameParams = new WindowManager.LayoutParams(
@@ -212,7 +217,8 @@ public class ImageCropPickerService extends Service {
 
                     if (cw > 5 && ch > 5) {
                         Bitmap cropped = Bitmap.createBitmap(screen, cx, cy, cw, ch);
-                        String uniqueName = "img_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5) + ".png";
+                        String prefix = isAnchorCapture ? "anchor_" : "img_";
+                        String uniqueName = prefix + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5) + ".png";
                         File file = new File(getFilesDir(), uniqueName);
                         FileOutputStream fos = new FileOutputStream(file);
                         cropped.compress(Bitmap.CompressFormat.PNG, 100, fos);
@@ -225,17 +231,26 @@ public class ImageCropPickerService extends Service {
                 e.printStackTrace();
             }
 
-            String actionName = isAlternateTemplate ? "ALTERNATE_TEMPLATE_CROPPED" : (isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
-            Intent intent = new Intent(actionName);
-            intent.setPackage(getPackageName());
-            intent.putExtra("crop_x", realX);
-            intent.putExtra("crop_y", realY);
-            intent.putExtra("crop_w", realW);
-            intent.putExtra("crop_h", realH);
-            intent.putExtra("target_x", targetClickX);
-            intent.putExtra("target_y", targetClickY);
-            intent.putExtra("image_path", savedPath);
-            sendBroadcast(intent);
+            if (isAnchorCapture) {
+                Intent intent = new Intent("ANCHOR_TEMPLATE_CROPPED");
+                intent.setPackage(getPackageName());
+                intent.putExtra("anchor_path", savedPath);
+                intent.putExtra("rel_x", realX - parentTargetX); // المسافة الأفقية الدقيقة عن الهدف
+                intent.putExtra("rel_y", realY - parentTargetY); // المسافة الرأسية الدقيقة عن الهدف
+                sendBroadcast(intent);
+            } else {
+                String actionName = isAlternateTemplate ? "ALTERNATE_TEMPLATE_CROPPED" : (isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
+                Intent intent = new Intent(actionName);
+                intent.setPackage(getPackageName());
+                intent.putExtra("crop_x", realX);
+                intent.putExtra("crop_y", realY);
+                intent.putExtra("crop_w", realW);
+                intent.putExtra("crop_h", realH);
+                intent.putExtra("target_x", targetClickX);
+                intent.putExtra("target_y", targetClickY);
+                intent.putExtra("image_path", savedPath);
+                sendBroadcast(intent);
+            }
             stopSelf();
         }, 120);
     }
