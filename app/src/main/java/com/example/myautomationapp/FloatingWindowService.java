@@ -40,7 +40,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -212,7 +211,7 @@ public class FloatingWindowService extends Service {
                         currentTargetForAlternateTemplate.addTemplateItem(newItem);
                         updateHudActionCards();
                         openHudBar();
-                        Toast.makeText(FloatingWindowService.this, "تمت إضافة قالب تدريب جديد للمعسكر بنجاح!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(FloatingWindowService.this, "تمت إضافة قالب تدريب جديد للهدف بنجاح!", Toast.LENGTH_SHORT).show();
                     }
                 }
             }
@@ -686,15 +685,14 @@ public class FloatingWindowService extends Service {
                 new Handler(Looper.getMainLooper()).post(() -> {
                     openHudBar();
                     if (screen != null) {
-                        List<Point> matchCenters = findAllMatchCentersForAction(screen, action, 1);
-                        if (!matchCenters.isEmpty()) {
-                            Point target = matchCenters.get(0);
+                        Point target = findMatchCenterForAction(screen, action);
+                        if (target != null) {
                             int clickTargetX = target.x + action.getOffsetX();
                             int clickTargetY = target.y + action.getOffsetY();
                             executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
                             Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر في مركزه بنجاح!", Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(FloatingWindowService.this, "الصورة غير موجودة على الشاشة!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة!", Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
@@ -738,9 +736,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * قائمة إعدادات شرط الصورة مع فتح مدير القوالب المتعددة وتعديل إعدادات كل لقطة
-     */
     private void showImageConditionSubMenu(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_image_condition_sub_menu, null);
@@ -804,7 +799,7 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم نسخ الشرط!", Toast.LENGTH_SHORT).show();
         });
 
-        // فتح مدير القوالب المتعددة لرؤية كل الصور وتعديل إعداداتها وعزل اللفل (صورة 1)
+        // فتح مدير القوالب المتعددة
         TextView tvCount = dialogView.findViewById(R.id.tvAlternateTemplatesCount);
         if (tvCount != null) {
             tvCount.setText("Manage Templates (x" + action.getTemplatePool().size() + " Trained)");
@@ -814,22 +809,11 @@ public class FloatingWindowService extends Service {
             showTemplateManagerDialog(action);
         });
 
-        TextView tvMultiTarget = dialogView.findViewById(R.id.tvMultiTargetStatus);
-        if (tvMultiTarget != null) {
-            tvMultiTarget.setText(action.isMultiTargetEnabled() ? "Target: All Camps (Multi-Click)" : "Target: Single Camp (First)");
-        }
-        dialogView.findViewById(R.id.subOptToggleMultiTarget).setOnClickListener(v -> {
-            action.setMultiTargetEnabled(!action.isMultiTargetEnabled());
-            updateHudActionCards();
-            dialog.dismiss();
-            Toast.makeText(this, action.isMultiTargetEnabled() ? "تم تفعيل رصد جميع المعسكرات على الشاشة!" : "تم التبديل لرصد أول معسكر فقط", Toast.LENGTH_SHORT).show();
-        });
-
         dialog.show();
     }
 
     /**
-     * نافذة مدير القوالب المتعددة: قائمة قابلة للتمرير مع إمكانية تعديل إعدادات كل صورة وحذفها وإضافة لقطات جديدة
+     * نافذة مدير القوالب المتعددة: قائمة قابلة للتمرير مع زر حذف أحمر مستقل 🗑️ لكل كرت
      */
     private void showTemplateManagerDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
@@ -859,24 +843,39 @@ public class FloatingWindowService extends Service {
             ImageView ivThumb = card.findViewById(R.id.ivExistThumbPreview);
             TextView tvName = card.findViewById(R.id.tvExistImageName);
             TextView tvDim = card.findViewById(R.id.tvExistImageDimensions);
+            ImageView btnDelete = card.findViewById(R.id.btnDeleteTemplateItem);
 
             Bitmap bmp = BitmapFactory.decodeFile(item.getImagePath());
             if (bmp != null) {
                 ivThumb.setImageBitmap(bmp);
-                tvDim.setText("[" + bmp.getWidth() + "x" + bmp.getHeight() + "px] • Sim: " + item.getSimilarity() + "% • Sun: " + item.getColorTolerance());
+                tvDim.setText("[" + bmp.getWidth() + "x" + bmp.getHeight() + "px] • Sim: " + item.getSimilarity() + "%");
             }
             tvName.setText((itemIndex == 0 ? "★ Primary: " : "Alt " + itemIndex + ": ") + item.getName());
 
-            // عند الضغط على الكرت -> فتح إعدادات هذه اللقطة بالتفصيل
+            // فتح إعدادات القالب والتنعيم بالبكسل
             card.setOnClickListener(v -> {
                 dialog.dismiss();
                 showIndividualTemplateSettingsDialog(action, item);
             });
 
+            // زر حذف هذا القالب المستقل 🗑️
+            if (btnDelete != null) {
+                btnDelete.setOnClickListener(v -> {
+                    if (pool.size() <= 1) {
+                        Toast.makeText(this, "لا يمكن حذف القالب الأساسي الوحيد!", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    pool.remove(itemIndex);
+                    updateHudActionCards();
+                    dialog.dismiss();
+                    showTemplateManagerDialog(action); // إعادة تحديث القائمة
+                    Toast.makeText(this, "تم حذف القالب بنجاح!", Toast.LENGTH_SHORT).show();
+                });
+            }
+
             listContainer.addView(card);
         }
 
-        // زر إضافة لقطة جديدة للهدف
         dialogView.findViewById(R.id.btnAddNewTrainedTemplate).setOnClickListener(v -> {
             dialog.dismiss();
             closeHudBar();
@@ -891,7 +890,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * نافذة إعدادات اللقطة الواحدة: نسبة التطابق، تساهل أشعة الشمس، عزل لفل 1 إلى 10، وتعديل البكسل (+/-)
+     * نافذة إعدادات القالب الواحد: المعاينة الحية المباشرة Live Preview وأزرار تنعيم البكسل (+/- 1px) وعزل الشارات
      */
     private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
@@ -908,6 +907,17 @@ public class FloatingWindowService extends Service {
         TextView tvTitle = dialogView.findViewById(R.id.tvTemplateSettingsTitle);
         tvTitle.setText("Settings: " + item.getName());
 
+        ImageView ivLivePreview = dialogView.findViewById(R.id.ivSettingsTemplatePreview);
+        TextView tvLiveDim = dialogView.findViewById(R.id.tvLiveTrimDimensions);
+
+        // تحميل الصورة الأصلية للمعاينة الحية المباشرة
+        final File templateFile = new File(item.getImagePath());
+        final Bitmap[] currentBmp = {BitmapFactory.decodeFile(templateFile.getAbsolutePath())};
+        if (currentBmp[0] != null) {
+            ivLivePreview.setImageBitmap(currentBmp[0]);
+            tvLiveDim.setText("[" + currentBmp[0].getWidth() + " x " + currentBmp[0].getHeight() + " px]");
+        }
+
         EditText etSim = dialogView.findViewById(R.id.etTemplateSim);
         etSim.setText(String.valueOf(item.getSimilarity()));
 
@@ -917,11 +927,19 @@ public class FloatingWindowService extends Service {
         Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
         swLevel.setChecked(item.isIgnoreLevelBadge());
 
-        // أزرار تعديل الحجم بالبكسل (+/- 1px)
-        dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> trimTemplateBitmap(item, -1, 0));
-        dialogView.findViewById(R.id.btnTrimWPlus).setOnClickListener(v -> trimTemplateBitmap(item, 1, 0));
-        dialogView.findViewById(R.id.btnTrimHMinus).setOnClickListener(v -> trimTemplateBitmap(item, 0, -1));
-        dialogView.findViewById(R.id.btnTrimHPlus).setOnClickListener(v -> trimTemplateBitmap(item, 0, 1));
+        // أزرار تعديل الحجم بالبكسل المباشرة (+/- 1px) مع رؤية التأثير فوراً بالعين
+        dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> 
+            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, -1, 0)
+        );
+        dialogView.findViewById(R.id.btnTrimWPlus).setOnClickListener(v -> 
+            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 1, 0)
+        );
+        dialogView.findViewById(R.id.btnTrimHMinus).setOnClickListener(v -> 
+            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 0, -1)
+        );
+        dialogView.findViewById(R.id.btnTrimHPlus).setOnClickListener(v -> 
+            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 0, 1)
+        );
 
         dialogView.findViewById(R.id.btnSaveTemplateSettings).setOnClickListener(v -> {
             String sVal = etSim.getText().toString();
@@ -933,36 +951,36 @@ public class FloatingWindowService extends Service {
             item.setColorTolerance(Math.max(10, Math.min(80, tol)));
             item.setIgnoreLevelBadge(swLevel.isChecked());
 
+            // حفظ الصورة المعدلة بالبكسل في الذاكرة
+            if (currentBmp[0] != null) {
+                try {
+                    FileOutputStream fos = new FileOutputStream(templateFile);
+                    currentBmp[0].compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    fos.close();
+                    item.setWidth(currentBmp[0].getWidth());
+                    item.setHeight(currentBmp[0].getHeight());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
             updateHudActionCards();
             dialog.dismiss();
-            Toast.makeText(this, "تم حفظ إعدادات القالب وعزل اللفل بنجاح!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم حفظ الإعدادات وقص البكسل بنجاح!", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
     }
 
-    /**
-     * تعديل حواف الصورة بالبكسل الواحد (+/- 1px)
-     */
-    private void trimTemplateBitmap(TemplateItem item, int dw, int dh) {
-        try {
-            File f = new File(item.getImagePath());
-            Bitmap bmp = BitmapFactory.decodeFile(f.getAbsolutePath());
-            if (bmp != null) {
-                int newW = Math.max(10, bmp.getWidth() + dw);
-                int newH = Math.max(10, bmp.getHeight() + dh);
+    private Bitmap applyLivePixelTrim(Bitmap bmp, ImageView ivPreview, TextView tvDim, int dw, int dh) {
+        if (bmp == null) return null;
+        int newW = Math.max(10, bmp.getWidth() + dw);
+        int newH = Math.max(10, bmp.getHeight() + dh);
 
-                Bitmap trimmed = Bitmap.createBitmap(bmp, 0, 0, Math.min(newW, bmp.getWidth()), Math.min(newH, bmp.getHeight()));
-                FileOutputStream fos = new FileOutputStream(f);
-                trimmed.compress(Bitmap.CompressFormat.PNG, 100, fos);
-                fos.close();
-
-                item.setWidth(newW); item.setHeight(newH);
-                Toast.makeText(this, "الأبعاد الجديدة: " + newW + " x " + newH + " px", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Bitmap trimmed = Bitmap.createBitmap(bmp, 0, 0, Math.min(newW, bmp.getWidth()), Math.min(newH, bmp.getHeight()));
+        ivPreview.setImageBitmap(trimmed);
+        tvDim.setText("[" + trimmed.getWidth() + " x " + trimmed.getHeight() + " px]");
+        return trimmed;
     }
 
     private double calculateActionSimilarity(Bitmap screen, Bitmap template, Action action) {
@@ -984,11 +1002,10 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * رصد جميع مراكز الأهداف المطابقة على الشاشة دفعة واحدة مع مراعاة إعدادات كل لقطة وعزل اللفل وتساهل الشمس
+     * رصد الهدف مع خوارزمية القفل المكاني لمنع القفز لأهداف أخرى مشابهة والنقر في المركز بالضبط
      */
-    private List<Point> findAllMatchCentersForAction(Bitmap screen, Action action, int maxMatches) {
-        List<Point> allCenters = new ArrayList<>();
-        if (screen == null) return allCenters;
+    private Point findMatchCenterForAction(Bitmap screen, Action action) {
+        if (screen == null) return null;
 
         List<TemplateItem> pool = action.getTemplatePool();
         String mode = action.getDetectLocationMode();
@@ -1003,23 +1020,24 @@ public class FloatingWindowService extends Service {
             int tolerance = item.getColorTolerance();
             boolean ignoreBadge = item.isIgnoreLevelBadge();
 
+            Point found = null;
             if ("FULL_SCREEN".equals(mode)) {
-                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, tolerance, ignoreBadge, maxMatches);
-                for (Point p : matches) allCenters.add(new Point(p.x + (tw / 2), p.y + (th / 2)));
+                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge);
             } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh, tolerance, ignoreBadge, maxMatches);
-                for (Point p : matches) allCenters.add(new Point(p.x + (tw / 2), p.y + (th / 2)));
+                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge);
             } else {
                 double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
                 if (sim >= minThresh) {
-                    allCenters.add(new Point(action.getCropX() + (tw / 2), action.getCropY() + (th / 2)));
+                    found = new Point(action.getCropX(), action.getCropY());
                 }
             }
 
-            if (allCenters.size() >= maxMatches) break;
+            if (found != null) {
+                return new Point(found.x + (tw / 2), found.y + (th / 2));
+            }
         }
 
-        return allCenters;
+        return null;
     }
 
     private void showEditOffsetDialog(Action action) {
@@ -1125,6 +1143,7 @@ public class FloatingWindowService extends Service {
             ImageView ivThumb = card.findViewById(R.id.ivExistThumbPreview);
             TextView tvName = card.findViewById(R.id.tvExistImageName);
             TextView tvDim = card.findViewById(R.id.tvExistImageDimensions);
+            ImageView btnDel = card.findViewById(R.id.btnDeleteTemplateItem);
 
             Bitmap bmp = BitmapFactory.decodeFile(file.getAbsolutePath());
             if (bmp != null) {
@@ -1153,6 +1172,15 @@ public class FloatingWindowService extends Service {
                 }
                 Toast.makeText(this, "تم اختيار: " + file.getName(), Toast.LENGTH_SHORT).show();
             });
+
+            if (btnDel != null) {
+                btnDel.setOnClickListener(v -> {
+                    file.delete();
+                    dialog.dismiss();
+                    showExistingImagesPicker(actionToEdit, isEditingExisting);
+                    Toast.makeText(this, "تم حذف الصورة من الذاكرة", Toast.LENGTH_SHORT).show();
+                });
+            }
 
             listContainer.addView(card);
         }
@@ -1465,7 +1493,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو المستمر: مع دعم رصد المعسكرات بجميع مستوياتها (1 إلى 10) وتساهل الإضاءة وسرعة الذاكرة
+     * تشغيل الماكرو المستمر: يبحث بدقة جراحية ويقفل مكانياً على الهدف المطلوب دون الانخداع بأي عنصر آخر
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
@@ -1508,15 +1536,11 @@ public class FloatingWindowService extends Service {
                         if ("Click Image".equals(type)) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null) {
-                                int maxTargetsToClick = action.isMultiTargetEnabled() ? 15 : 1;
-                                List<Point> targets = findAllMatchCentersForAction(screen, action, maxTargetsToClick);
-
-                                for (Point targetCenter : targets) {
-                                    if (!isMacroRunning) break;
+                                Point targetCenter = findMatchCenterForAction(screen, action);
+                                if (targetCenter != null) {
                                     int clickTargetX = targetCenter.x + action.getOffsetX();
                                     int clickTargetY = targetCenter.y + action.getOffsetY();
                                     executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
-                                    try { Thread.sleep(Math.max(250, action.getDelayAfterMs())); } catch (Exception ignored) {}
                                 }
                             }
                         } else if ("Click (x, y)".equals(type)) {
@@ -1524,8 +1548,8 @@ public class FloatingWindowService extends Service {
                                 boolean conditionMet = false;
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (screen != null) {
-                                    List<Point> targets = findAllMatchCentersForAction(screen, action, 1);
-                                    boolean detected = !targets.isEmpty();
+                                    Point targetCenter = findMatchCenterForAction(screen, action);
+                                    boolean detected = (targetCenter != null);
                                     conditionMet = action.isNotAppear() ? !detected : detected;
                                 }
                                 if (!conditionMet) continue;
