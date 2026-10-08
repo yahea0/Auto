@@ -16,14 +16,18 @@ public class VisionEngine {
         }
     }
 
-    private static List<Keypoint> extractFeaturePoints(Bitmap template, int maxPoints) {
+    private static List<Keypoint> extractFeaturePoints(Bitmap template, int maxPoints, boolean ignoreBottomBadge) {
         List<Keypoint> points = new ArrayList<>();
         int tw = template.getWidth();
         int th = template.getHeight();
-        int stepX = Math.max(1, tw / 10);
-        int stepY = Math.max(1, th / 10);
+        
+        // إذا كان خيار عزل اللفل مفعلاً، نتجاهل الـ 25% السفلية من الصورة (حيث يوجد رقم 10 أو 1)
+        int effectiveHeight = ignoreBottomBadge ? (int) (th * 0.75) : th;
 
-        for (int y = 0; y < th && points.size() < maxPoints; y += stepY) {
+        int stepX = Math.max(1, tw / 10);
+        int stepY = Math.max(1, effectiveHeight / 8);
+
+        for (int y = 0; y < effectiveHeight && points.size() < maxPoints; y += stepY) {
             for (int x = 0; x < tw && points.size() < maxPoints; x += stepX) {
                 int color = template.getPixel(x, y);
                 int r = (color >> 16) & 0xFF;
@@ -35,20 +39,21 @@ public class VisionEngine {
         return points;
     }
 
-    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
+    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null) return 0.0;
 
         int tw = template.getWidth();
         int th = template.getHeight();
+        int effectiveHeight = ignoreBottomBadge ? (int) (th * 0.75) : th;
 
         int safeX = Math.max(0, Math.min(cropX, screen.getWidth() - tw));
-        int safeY = Math.max(0, Math.min(cropY, screen.getHeight() - th));
+        int safeY = Math.max(0, Math.min(cropY, screen.getHeight() - effectiveHeight));
 
-        int[] screenPixels = new int[tw * th];
-        int[] templatePixels = new int[tw * th];
+        int[] screenPixels = new int[tw * effectiveHeight];
+        int[] templatePixels = new int[tw * effectiveHeight];
 
-        screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, th);
-        template.getPixels(templatePixels, 0, tw, 0, 0, tw, th);
+        screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, effectiveHeight);
+        template.getPixels(templatePixels, 0, tw, 0, 0, tw, effectiveHeight);
 
         int matched = 0;
         int total = screenPixels.length;
@@ -59,7 +64,8 @@ public class VisionEngine {
             int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
             int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-            if (diffR < 28 && diffG < 28 && diffB < 28) {
+            // تساهل أشعة الشمس اللوني
+            if (diffR < colorTolerance && diffG < colorTolerance && diffB < colorTolerance) {
                 matched++;
             }
         }
@@ -69,19 +75,19 @@ public class VisionEngine {
         return ((double) matched / sampledTotal) * 100.0;
     }
 
-    /**
-     * رصد هدف واحد سريع
-     */
+    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
+        return compareSubRegionStrict(screen, template, cropX, cropY, 28, false);
+    }
+
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
-        List<Point> results = scanAndFindAllTemplates(screen, template, searchX, searchY, searchW, searchH, minThreshold, 1);
+        List<Point> results = scanAndFindAllTemplates(screen, template, searchX, searchY, searchW, searchH, minThreshold, 28, false, 1);
         return results.isEmpty() ? null : results.get(0);
     }
 
     /**
-     * محرك الذكاء الاصطناعي الأقوى عالمياً للهاتف:
-     * يرصد جميع المعسكرات/الأهداف المتطابقة على الشاشة دفعة واحدة (حتى 20 هدفاً) مع عزل التكرار (NMS)
+     * المسح الفائق متعدد الأهداف مع دعم تساهل الشمس وعزل أرقام اللفل
      */
-    public static List<Point> scanAndFindAllTemplates(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int maxMatches) {
+    public static List<Point> scanAndFindAllTemplates(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int colorTolerance, boolean ignoreLevelBadge, int maxMatches) {
         List<Point> finalMatches = new ArrayList<>();
         if (screen == null || template == null) return finalMatches;
 
@@ -97,7 +103,14 @@ public class VisionEngine {
         int limitX = Math.min(sw - tw, boundX + searchW);
         int limitY = Math.min(sh - th, boundY + searchH);
 
-        List<Keypoint> keypoints = extractFeaturePoints(template, 48);
+        // 1. فحص فوري للموضع المباشر
+        double directSim = compareSubRegionStrict(screen, template, boundX, boundY, colorTolerance, ignoreLevelBadge);
+        if (directSim >= minThreshold) {
+            finalMatches.add(new Point(boundX, boundY));
+            if (maxMatches == 1) return finalMatches;
+        }
+
+        List<Keypoint> keypoints = extractFeaturePoints(template, 48, ignoreLevelBadge);
         int kpCount = keypoints.size();
         if (kpCount == 0) return finalMatches;
 
@@ -106,8 +119,7 @@ public class VisionEngine {
 
         int step = (tw > 70 && th > 70) ? 4 : 2;
         int maxAllowedMismatches = (int) (kpCount * (1.0 - (minThreshold / 100.0)) + 3);
-
-        int minDistance = Math.max(20, Math.min(tw, th) / 2); // مسافة عزل المعسكرات المتجاورة لمنع تكرار نفس المعسكر
+        int minDistance = Math.max(20, Math.min(tw, th) / 2);
 
         for (int y = boundY; y <= limitY; y += step) {
             for (int x = boundX; x <= limitX; x += step) {
@@ -124,7 +136,7 @@ public class VisionEngine {
                     int diffG = Math.abs(((sc >> 8) & 0xFF) - kp.g);
                     int diffB = Math.abs((sc & 0xFF) - kp.b);
 
-                    if (diffR < 30 && diffG < 30 && diffB < 30) {
+                    if (diffR < colorTolerance && diffG < colorTolerance && diffB < colorTolerance) {
                         matched++;
                     } else {
                         mismatches++;
@@ -135,7 +147,6 @@ public class VisionEngine {
                 if (mismatches <= maxAllowedMismatches) {
                     double score = ((double) matched / kpCount) * 100.0;
                     if (score >= Math.max(35.0, minThreshold - 20.0)) {
-                        // التأكد من أن هذا المعسكر جديد وليس نفس المعسكر السابق
                         boolean isAlreadyFound = false;
                         for (Point existing : finalMatches) {
                             if (Math.hypot(existing.x - x, existing.y - y) < minDistance) {
@@ -145,8 +156,7 @@ public class VisionEngine {
                         }
 
                         if (!isAlreadyFound) {
-                            // فحص دقيق بنقاء 1 بكسل
-                            double strictSim = compareSubRegionStrict(screen, template, x, y);
+                            double strictSim = compareSubRegionStrict(screen, template, x, y, colorTolerance, ignoreLevelBadge);
                             if (strictSim >= minThreshold) {
                                 finalMatches.add(new Point(x, y));
                                 if (finalMatches.size() >= maxMatches) {
