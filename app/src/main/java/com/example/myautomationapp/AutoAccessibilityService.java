@@ -5,9 +5,15 @@ import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
+import java.util.Random;
 
+/**
+ * محرك النقر عالي الاستجابة (Macrorify Ultra-Responsive Gesture Engine)
+ * زمن استجابة 25ms، مع مستمع اكتمال الحركة وإزاحة السنتر البشرية الذكية.
+ */
 public class AutoAccessibilityService extends AccessibilityService {
     public static AutoAccessibilityService instance;
+    private static final Random random = new Random();
 
     @Override
     public void onServiceConnected() {
@@ -34,21 +40,37 @@ public class AutoAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * Single Click - نقرة عادية فورية (45ms)
+     * نقرة Macrorify السريعة الفورية (25ms) مع إزاحة عشوائية بشرية طفيفة (±2 بكسل)
      */
     public void click(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+
+        // إزاحة بشرية ذكية لمنع كشف البوتات في الألعاب
+        int jitterX = x + (random.nextInt(5) - 2);
+        int jitterY = y + (random.nextInt(5) - 2);
+
         Path path = new Path();
-        path.moveTo(x, y);
-        path.lineTo(x, y);
+        path.moveTo(jitterX, jitterY);
+        path.lineTo(jitterX, jitterY);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 45));
-        dispatchGesture(builder.build(), null, null);
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 25));
+
+        dispatchGesture(builder.build(), new GestureResultCallback() {
+            @Override
+            public void onCompleted(GestureDescription gestureDescription) {
+                super.onCompleted(gestureDescription);
+            }
+
+            @Override
+            public void onCancelled(GestureDescription gestureDescription) {
+                super.onCancelled(gestureDescription);
+            }
+        }, null);
     }
 
     /**
-     * Double Click - نقرة مزدوجة سريعة
+     * نقرة مزدوجة سريعة (Double Click)
      */
     public void doubleClick(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
@@ -57,13 +79,13 @@ public class AutoAccessibilityService extends AccessibilityService {
         path.lineTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 40));
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 80, 40));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 25));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 60, 25));
         dispatchGesture(builder.build(), null, null);
     }
 
     /**
-     * Triple Click - نقرة ثلاثية
+     * نقرة ثلاثية (Triple Click)
      */
     public void tripleClick(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
@@ -72,14 +94,14 @@ public class AutoAccessibilityService extends AccessibilityService {
         path.lineTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 35));
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 75, 35));
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 150, 35));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 25));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 55, 25));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 110, 25));
         dispatchGesture(builder.build(), null, null);
     }
 
     /**
-     * Long Click - ضغطة مطولة (500ms)
+     * ضغطة مطولة (Long Click)
      */
     public void longClick(int x, int y) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
@@ -88,7 +110,7 @@ public class AutoAccessibilityService extends AccessibilityService {
         path.lineTo(x, y);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 500));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 400));
         dispatchGesture(builder.build(), null, null);
     }
 
@@ -107,10 +129,4 @@ public class AutoAccessibilityService extends AccessibilityService {
     public void openRecents() { performGlobalAction(GLOBAL_ACTION_RECENTS); }
     public void openNotifications() { performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS); }
     public void openQuickSettings() { performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS); }
-    public void lockScreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
-    }
-    public void takeScreenshot() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT);
-    }
 }
