@@ -3,15 +3,8 @@ package com.example.myautomationapp;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 
-/**
- * محرك الرؤية الحاسوبية المتقدم للهواتف الذكية
- * مزود بنظام الفحص الهرمي، ومعامل الارتباط ZNCC، وحارس التباين لمنع النقرات العشوائية.
- */
 public class VisionEngine {
 
-    /**
-     * التوجيه التلقائي للهدف بحسب الوضع المختار في الأكشن
-     */
     public static Point findActionTarget(Bitmap screen, Bitmap template, Action action) {
         if (screen == null || template == null || action == null) return null;
 
@@ -37,7 +30,6 @@ public class VisionEngine {
             searchW = action.getCustomRegionW();
             searchH = action.getCustomRegionH();
         } else {
-            // Full Screen
             searchX = 0;
             searchY = 0;
             searchW = sw;
@@ -48,9 +40,6 @@ public class VisionEngine {
         return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, 30, false);
     }
 
-    /**
-     * المسح الهرمي السريع والدقيق في الشاشة
-     */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template,
                                            int searchX, int searchY, int searchW, int searchH,
                                            int expectedX, int expectedY,
@@ -72,14 +61,14 @@ public class VisionEngine {
 
         if (limitW < tw || limitH < effectiveTh) return null;
 
-        // 1. المسار الفوري لوضع Captured Location (< 1ms)
+        // 1. المسار الفوري لوضع Captured Location
         if (expectedX >= 0 && expectedY >= 0) {
             int testX = Math.max(boundX, Math.min(sw - tw, expectedX));
             int testY = Math.max(boundY, Math.min(sh - effectiveTh, expectedY));
 
             double directSim = compareSubRegionStrict(screen, template, testX, testY, colorTolerance, ignoreBadge);
             if (directSim >= minThreshold) {
-                return new Point(testX + (tw / 2), testY + (effectiveTh / 2));
+                return new Point(testX, testY);
             }
 
             Point localBest = null;
@@ -92,7 +81,7 @@ public class VisionEngine {
                         double s = compareSubRegionStrict(screen, template, curX, curY, colorTolerance, ignoreBadge);
                         if (s > localMax) {
                             localMax = s;
-                            localBest = new Point(curX + (tw / 2), curY + (effectiveTh / 2));
+                            localBest = new Point(curX, curY);
                         }
                     }
                 }
@@ -102,7 +91,7 @@ public class VisionEngine {
             }
         }
 
-        // 2. الهرم متعدد المقاييس (Pyramid Search) لوضعي Full Screen و Custom Region
+        // 2. الفحص الهرمي السريع (Pyramid Multi-Scale)
         int scale = (limitW > 400 && limitH > 400) ? 4 : 2;
 
         int pyrSw = limitW / scale;
@@ -174,7 +163,6 @@ public class VisionEngine {
                     }
                 }
 
-                // ⛔ حارس التباين: استبعاد أي مساحات فارغة أو رمال أو خلفيات ملساء فوراً
                 if (patchVar < 25.0f || cross <= 0) continue;
 
                 float corr = cross / (float) (Math.sqrt(patchVar * tplVar) + 1e-4);
@@ -190,7 +178,7 @@ public class VisionEngine {
             return null;
         }
 
-        // 3. الفحص الجراحي الدقيق (Fine Refinement) بدقة 1 بكسل
+        // 3. الفحص الجراحي الدقيق (Fine Refinement)
         int fineStartX = Math.max(boundX, boundX + candX - (scale * 2));
         int fineEndX = Math.min(boundX + limitW - tw, boundX + candX + (scale * 2));
         int fineStartY = Math.max(boundY, boundY + candY - (scale * 2));
@@ -204,7 +192,7 @@ public class VisionEngine {
                 double sim = compareSubRegionStrict(screen, template, fx, fy, colorTolerance, ignoreBadge);
                 if (sim > maxFinalSim) {
                     maxFinalSim = sim;
-                    finalPoint = new Point(fx + (tw / 2), fy + (effectiveTh / 2));
+                    finalPoint = new Point(fx, fy); // إرجاع أعلى اليسار لكي يضيف الفلوتي نصف الأبعاد بدقة
                 }
             }
         }
@@ -216,9 +204,6 @@ public class VisionEngine {
         return null;
     }
 
-    /**
-     * مقارنة تطابق صارمة مع إسقاط النسبة إلى 5% إذا كانت المساحة خالية من التفاصيل
-     */
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null || screen.isRecycled() || template.isRecycled()) return 0.0;
 
@@ -283,7 +268,6 @@ public class VisionEngine {
             cross += pDiff * tDiff;
         }
 
-        // إذا كان الهدف يحمل نصوصاً وتفاصيل ولكن الخلفية على الشاشة ملساء وفارغة -> لا يوجد هدف!
         if (tVar > 80.0f && pVar < 25.0f) {
             return 5.0;
         }
