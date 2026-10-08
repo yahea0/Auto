@@ -127,7 +127,7 @@ public class ScreenCaptureManager {
     }
 
     /**
-     * إرجاع لقطة شاشة حية غير قابلة للتلف حتى عند استدعاء recycle() من قِص الشريط المطاطي
+     * إرجاع لقطة شاشة حية آمنة لا تتأثر نهائياً بأي استدعاء لـ recycle() من قِص الشريط المطاطي
      */
     public Bitmap captureScreen() {
         synchronized (frameLock) {
