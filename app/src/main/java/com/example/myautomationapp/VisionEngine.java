@@ -2,12 +2,11 @@ package com.example.myautomationapp;
 
 import android.graphics.Bitmap;
 import android.graphics.Point;
-import java.io.File;
 
 /**
  * محرك البحث والتحقق الصارم فائق الدقة (Macrorify-Grade Strict Vision Engine)
  * يعتمد على مطابقة مصفوفة التردد العالي للنصوص (High-Frequency Text & Edge Bottleneck)
- * مع ارتباط الألوان ثلاثي القنوات (Multi-Channel ZNCC) وحماية الإحداثيات المحددة.
+ * مع ارتباط الألوان ثلاثي القنوات (Multi-Channel ZNCC) وحظر القفز العشوائي في وضع CAPTURED.
  */
 public class VisionEngine {
 
@@ -42,7 +41,7 @@ public class VisionEngine {
             searchH = sh;
         }
 
-        // استخراج النسبة والتسامح الحقيقي من القالب أو الأكشن مع التزامن التام
+        // استخراج النسبة والتسامح الحقيقي من القالب أو الأكشن بتزامن كامل
         double threshold = action.getSimilarity() > 0 ? action.getSimilarity() : 70.0;
         int colorTolerance = 30;
         boolean ignoreBadge = false;
@@ -90,7 +89,7 @@ public class VisionEngine {
                 return new Point(testX, testY);
             }
 
-            // فحص موضعي طفيف (±15 بكسل) لمراعاة اهتزاز الرسم الطبيعي للشاشة
+            // فحص موضعي طفيف (±16 بكسل) لمعالجة اهتزاز رسم الشاشة البسيط
             Point localBest = null;
             double localMax = 0.0;
             for (int dy = -16; dy <= 16; dy += 2) {
@@ -111,7 +110,7 @@ public class VisionEngine {
                 return localBest;
             }
 
-            // حظر قاطع: وضع CAPTURED مخصص لمكان محدد، فإذا لم تتطابق الصورة مكانه لا يتم البحث عشوائياً في الشاشة
+            // عزل تام: وضع CAPTURED مخصص لمكان الزر فقط؛ إذا لم يتطابق مكانه يرفض فوراً ولا يبحث عشوائياً في الشاشة
             return null;
         }
 
@@ -294,7 +293,7 @@ public class VisionEngine {
 
             varS += drS * drS + dgS * dgS + dbS * dbS;
             varT += drT * drT + dgT * dgT + dbT * dbT;
-            crossColor += drS * drT + dgS * dgT + dbS * dbT;
+            crossColor += drS * drT + dgS * dgT + dbT * dbT;
 
             absErrSum += Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF))
                        + Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF))
