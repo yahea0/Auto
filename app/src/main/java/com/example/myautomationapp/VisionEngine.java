@@ -37,6 +37,10 @@ public class VisionEngine {
         return points;
     }
 
+    /**
+     * معادلة التطابق البكسلي المستمر فائقة الدقة (Continuous Perceptual Metric)
+     * تستجيب بدقة بالشعرة لأي تعديل في التسامح ونسبة التشابه دون انقطاع حاد
+     */
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null) return 0.0;
 
@@ -53,51 +57,72 @@ public class VisionEngine {
         screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, effectiveHeight);
         template.getPixels(templatePixels, 0, tw, 0, 0, tw, effectiveHeight);
 
-        int matched = 0;
         int total = screenPixels.length;
+        if (total == 0) return 0.0;
 
-        for (int i = 0; i < total; i += 2) {
-            int sc = screenPixels[i]; int tc = templatePixels[i];
+        // تحويل تسامح الظل والإضاءة إلى حد تدرج لوني ممتص
+        double tolThreshold = (colorTolerance * 255.0) / 100.0;
+        double totalScore = 0.0;
+        int step = (total > 30000) ? 2 : 1;
+        int samples = 0;
+
+        for (int i = 0; i < total; i += step) {
+            int sc = screenPixels[i];
+            int tc = templatePixels[i];
+
             int diffR = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
             int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
             int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-            if (diffR < colorTolerance && diffG < colorTolerance && diffB < colorTolerance) {
-                matched++;
+            double pixelDiff = (diffR + diffG + diffB) / 3.0;
+
+            // إذا كان التغير ضمن تسامح أشعة الشمس لا يُخصم أي شيء
+            if (pixelDiff <= tolThreshold) {
+                totalScore += 1.0;
+            } else {
+                // تدرج رياضي مستمر دون أي قفزات عشوائية
+                double penalty = (pixelDiff - tolThreshold) / Math.max(1.0, 255.0 - tolThreshold);
+                totalScore += Math.max(0.0, 1.0 - penalty);
             }
+            samples++;
         }
 
-        int sampledTotal = (total + 1) / 2;
-        if (sampledTotal == 0) return 0.0;
-        return ((double) matched / sampledTotal) * 100.0;
+        if (samples == 0) return 0.0;
+        return (totalScore / samples) * 100.0;
     }
 
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
-        return compareSubRegionStrict(screen, template, cropX, cropY, 30, false);
+        return compareSubRegionStrict(screen, template, cropX, cropY, 35, false);
     }
 
     /**
-     * التحقق الصارم من وجود العلامة المميزة المرجعية (Landmark Anchor) بجوار الهدف في الموضع النسبي المحدد
+     * قياس نسبة تطابق العلامة المميزة في موضعها النسبي بنافذة بحث مرنة (±20 بكسل)
      */
-    public static boolean verifyAnchorAtRelativeOffset(Bitmap screen, Bitmap anchorBmp, int targetX, int targetY, int relX, int relY, int tolerance, double minThresh) {
-        if (screen == null || anchorBmp == null) return false;
+    public static double getAnchorMatchSimilarity(Bitmap screen, Bitmap anchorBmp, int targetCropX, int targetCropY, int relX, int relY, int tolerance) {
+        if (screen == null || anchorBmp == null) return 0.0;
 
-        int expectedX = targetX + relX;
-        int expectedY = targetY + relY;
+        int expectedX = targetCropX + relX;
+        int expectedY = targetCropY + relY;
 
-        for (int dy = -6; dy <= 6; dy += 2) {
-            for (int dx = -6; dx <= 6; dx += 2) {
+        double maxSim = 0.0;
+        // مسح بنافذة ±20 بكسل لتحمل حركة الخريطة واهتزاز الكاميرا في لعبة الفاتحون
+        for (int dy = -20; dy <= 20; dy += 3) {
+            for (int dx = -20; dx <= 20; dx += 3) {
                 double sim = compareSubRegionStrict(screen, anchorBmp, expectedX + dx, expectedY + dy, tolerance, false);
-                if (sim >= minThresh) {
-                    return true;
+                if (sim > maxSim) {
+                    maxSim = sim;
                 }
             }
         }
-        return false;
+        return maxSim;
+    }
+
+    public static boolean verifyAnchorAtRelativeOffset(Bitmap screen, Bitmap anchorBmp, int targetCropX, int targetCropY, int relX, int relY, int tolerance, double minThresh) {
+        return getAnchorMatchSimilarity(screen, anchorBmp, targetCropX, targetCropY, relX, relY, tolerance) >= minThresh;
     }
 
     /**
-     * المسح الفائق مع القفل المكاني والتحقق الإلزامي من وجود العلامة المميزة المرجعية
+     * المسح الفائق مع القفل المكاني والتحقق الإلزامي من وجود العلامة المميزة
      */
     public static Point scanAndFindTemplateWithSpatialLock(Bitmap screen, Bitmap template, Bitmap anchorBmp, int searchX, int searchY, int searchW, int searchH, int expectedX, int expectedY, double minThreshold, int colorTolerance, boolean ignoreLevelBadge, boolean hasAnchor, int relAnchorX, int relAnchorY, int anchorTol, double anchorThresh) {
         if (screen == null || template == null) return null;
@@ -114,7 +139,7 @@ public class VisionEngine {
         int limitX = Math.min(sw - tw, boundX + searchW);
         int limitY = Math.min(sh - th, boundY + searchH);
 
-        // فحص الموضع المباشر أولاً
+        // 1. فحص فوري للموضع المباشر
         double directSim = compareSubRegionStrict(screen, template, boundX, boundY, colorTolerance, ignoreLevelBadge);
         if (directSim >= minThreshold) {
             if (!hasAnchor || verifyAnchorAtRelativeOffset(screen, anchorBmp, boundX, boundY, relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
@@ -169,7 +194,7 @@ public class VisionEngine {
                         if (spatialScore > highestSpatialScore) {
                             double strictSim = compareSubRegionStrict(screen, template, x, y, colorTolerance, ignoreLevelBadge);
                             if (strictSim >= minThreshold) {
-                                // شرط الأمان القاطع في لعبة الفاتحون: يجب وجود العلامة المميزة المرجعية!
+                                // شرط الأمان القاطع في لعبة الفاتحون
                                 if (!hasAnchor || verifyAnchorAtRelativeOffset(screen, anchorBmp, x, y, relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
                                     highestSpatialScore = spatialScore;
                                     bestLockedPoint = new Point(x, y);
@@ -185,6 +210,6 @@ public class VisionEngine {
     }
 
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
-        return scanAndFindTemplateWithSpatialLock(screen, template, null, searchX, searchY, searchW, searchH, searchX, searchY, minThreshold, 30, false, false, 0, 0, 30, 70);
+        return scanAndFindTemplateWithSpatialLock(screen, template, null, searchX, searchY, searchW, searchH, searchX, searchY, minThreshold, 35, false, false, 0, 0, 35, 70);
     }
 }
