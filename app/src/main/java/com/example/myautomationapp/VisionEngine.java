@@ -4,13 +4,13 @@ import android.graphics.Bitmap;
 import android.graphics.Point;
 
 /**
- * أحدث محرك رؤية حاسوبية عالي السرعة للأندرويد
- * يعتمد على الهرم متعدد المقاييس (Pyramidal ZNCC) مع حماية صارمة ضد النقرات العشوائية في الفضاء.
+ * محرك الرؤية الحاسوبية المتقدم للهواتف الذكية
+ * مزود بنظام الفحص الهرمي، ومعامل الارتباط ZNCC، وحارس التباين لمنع النقرات العشوائية.
  */
 public class VisionEngine {
 
     /**
-     * دالة البحث الشاملة للأكشن مع التوجيه التلقائي للأوضاع الثلاثة
+     * التوجيه التلقائي للهدف بحسب الوضع المختار في الأكشن
      */
     public static Point findActionTarget(Bitmap screen, Bitmap template, Action action) {
         if (screen == null || template == null || action == null) return null;
@@ -25,7 +25,6 @@ public class VisionEngine {
         int expX = -1, expY = -1;
 
         if ("CAPTURED".equalsIgnoreCase(mode)) {
-            // فحص موضعي حول المكان الذي تم التقاط الصورة منه (±30 بكسل)
             expX = action.getCropX();
             expY = action.getCropY();
             searchX = Math.max(0, expX - 35);
@@ -33,13 +32,12 @@ public class VisionEngine {
             searchW = action.getCropW() + 70;
             searchH = action.getCropH() + 70;
         } else if ("CUSTOM".equalsIgnoreCase(mode)) {
-            // فحص المنطقة المخصصة المحددة من المستخدم
             searchX = action.getCustomRegionX();
             searchY = action.getCustomRegionY();
             searchW = action.getCustomRegionW();
             searchH = action.getCustomRegionH();
         } else {
-            // Full Screen: فحص كامل الشاشة
+            // Full Screen
             searchX = 0;
             searchY = 0;
             searchW = sw;
@@ -51,7 +49,7 @@ public class VisionEngine {
     }
 
     /**
-     * محرك البحث الهرمي فائق الدقة والسرعة
+     * المسح الهرمي السريع والدقيق في الشاشة
      */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template,
                                            int searchX, int searchY, int searchW, int searchH,
@@ -67,7 +65,6 @@ public class VisionEngine {
         int effectiveTh = ignoreBadge ? (int) (th * 0.75) : th;
         if (tw <= 4 || effectiveTh <= 4 || sw < tw || sh < effectiveTh) return null;
 
-        // ضبط حدود منطقة البحث بأمان
         int boundX = Math.max(0, searchX);
         int boundY = Math.max(0, searchY);
         int limitW = Math.min(sw - boundX, searchW);
@@ -75,12 +72,11 @@ public class VisionEngine {
 
         if (limitW < tw || limitH < effectiveTh) return null;
 
-        // 1. المسار الفائق السرعة لوضع Captured Location (< 1ms)
+        // 1. المسار الفوري لوضع Captured Location (< 1ms)
         if (expectedX >= 0 && expectedY >= 0) {
             int testX = Math.max(boundX, Math.min(sw - tw, expectedX));
             int testY = Math.max(boundY, Math.min(sh - effectiveTh, expectedY));
 
-            // فحص نقطة التوقع ومحيطها الصغير أولاً
             double directSim = compareSubRegionStrict(screen, template, testX, testY, colorTolerance, ignoreBadge);
             if (directSim >= minThreshold) {
                 return new Point(testX + (tw / 2), testY + (effectiveTh / 2));
@@ -106,8 +102,7 @@ public class VisionEngine {
             }
         }
 
-        // 2. تقنية الهرم (Image Pyramid) لوضعي Full Screen و Custom Region
-        // نختار معامل التصغير (Scale = 4 للفل سكرين، أو 2 للمناطق الصغيرة)
+        // 2. الهرم متعدد المقاييس (Pyramid Search) لوضعي Full Screen و Custom Region
         int scale = (limitW > 400 && limitH > 400) ? 4 : 2;
 
         int pyrSw = limitW / scale;
@@ -117,7 +112,6 @@ public class VisionEngine {
 
         if (pyrSw < pyrTw || pyrSh < pyrTh) return null;
 
-        // توليد مصفوفات التدرج الرمادي المصغرة (Box-filtered Luminance)
         float[] tplLuma = new float[pyrTw * pyrTh];
         float tplSum = 0;
         int[] tplColors = new int[tw * effectiveTh];
@@ -141,10 +135,8 @@ public class VisionEngine {
             tplVar += tplLuma[i] * tplLuma[i];
         }
 
-        // إذا كان القالب أملس تماماً وبدون أي نقوش
         if (tplVar < 10.0f) tplVar = 10.0f;
 
-        // تجهيز مصفوفة الشاشة المصغرة لمنطقة البحث
         int[] screenRoi = new int[limitW * limitH];
         screen.getPixels(screenRoi, 0, limitW, boundX, boundY, limitW, limitH);
 
@@ -156,15 +148,12 @@ public class VisionEngine {
             }
         }
 
-        // مسح سريع بالهرم (Coarse Search) لاكتشاف المرشحين الأقوياء فقط
-        int coarseStep = 2; // قفزة سريعة بـ 2 بكسل
+        int coarseStep = 2;
         float bestCorr = -1.0f;
         int candX = -1, candY = -1;
 
         for (int y = 0; y <= pyrSh - pyrTh; y += coarseStep) {
             for (int x = 0; x <= pyrSw - pyrTw; x += coarseStep) {
-
-                // حساب متوسط وتباين البقعة على الشاشة
                 float patchSum = 0;
                 for (int ty = 0; ty < pyrTh; ty++) {
                     int pIdx = (y + ty) * pyrSw + x;
@@ -185,7 +174,7 @@ public class VisionEngine {
                     }
                 }
 
-                // ⛔ حارس الفضاء (Variance Gating): استبعاد أي بقعة رمال أو خلفية ملساء فورياً!
+                // ⛔ حارس التباين: استبعاد أي مساحات فارغة أو رمال أو خلفيات ملساء فوراً
                 if (patchVar < 25.0f || cross <= 0) continue;
 
                 float corr = cross / (float) (Math.sqrt(patchVar * tplVar) + 1e-4);
@@ -197,13 +186,11 @@ public class VisionEngine {
             }
         }
 
-        // إذا لم يعطِ الهرم أي تطابق بنيوي مشجع (أقل من 40%) -> لا يوجد هدف قطعاً
         if (bestCorr < 0.38f || candX < 0) {
             return null;
         }
 
-        // 3. التدقيق الجراحي الأصلي بنقاء 1 بكسل (Fine Refinement)
-        // فحص نافذة صغيرة جداً (±8 بكسل) حول المرشح الحقيقي في الدقة الكاملة 1080x2400
+        // 3. الفحص الجراحي الدقيق (Fine Refinement) بدقة 1 بكسل
         int fineStartX = Math.max(boundX, boundX + candX - (scale * 2));
         int fineEndX = Math.min(boundX + limitW - tw, boundX + candX + (scale * 2));
         int fineStartY = Math.max(boundY, boundY + candY - (scale * 2));
@@ -222,17 +209,15 @@ public class VisionEngine {
             }
         }
 
-        // إذا تجاوزت النسبة الدقيقة شرط المستخدم -> اضغط بالمنتصف فوراً!
         if (maxFinalSim >= minThreshold && finalPoint != null) {
             return finalPoint;
         }
 
-        // إذا لم يصل للنسبة المطلوبة -> يُمنع الضغط في الفضاء تماماً!
         return null;
     }
 
     /**
-     * المقارنة الصارمة مع نظام حظر الخلفيات الملساء (Anti-False-Positive Engine)
+     * مقارنة تطابق صارمة مع إسقاط النسبة إلى 5% إذا كانت المساحة خالية من التفاصيل
      */
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null || screen.isRecycled() || template.isRecycled()) return 0.0;
@@ -298,8 +283,7 @@ public class VisionEngine {
             cross += pDiff * tDiff;
         }
 
-        // ⛔ إذا كان الزر يحتوي على نص وتفاصيل (tVar > 80)، ولكن البقعة في الشاشة ملساء (pVar < 25)
-        // مثل الأرضيات والجدران الفارغة -> يتم إسقاط النسبة فوراً إلى 5% لمنع النقر الخاطئ!
+        // إذا كان الهدف يحمل نصوصاً وتفاصيل ولكن الخلفية على الشاشة ملساء وفارغة -> لا يوجد هدف!
         if (tVar > 80.0f && pVar < 25.0f) {
             return 5.0;
         }
@@ -310,7 +294,6 @@ public class VisionEngine {
             corr = Math.max(0.0, cross / (Math.sqrt(pVar * tVar) + 1e-4));
         }
 
-        // دمج ذكي: 65% للارتباط الهيكلي البنيوي + 35% لتطابق الألوان
         double finalScore = (corr * 0.65 + colorRatio * 0.35) * 100.0;
         return Math.min(100.0, finalScore);
     }
