@@ -12,11 +12,11 @@ public class TemplateItem implements Serializable, Cloneable {
     private int width = 0;
     private int height = 0;
 
-    // نظام العلامة المميزة المرجعية (Landmark Anchor) لحل مشكلة الخريطة المتحركة في لعبة الفاتحون
+    // نظام العلامة المميزة المرجعية (Landmark Anchor)
     private boolean hasAnchor = false;
     private String anchorImagePath = null;
-    private int anchorRelativeX = 0; // المسافة النسبية الأفقية للعلامة عن المعسكر
-    private int anchorRelativeY = 0; // المسافة النسبية الرأسية للعلامة عن المعسكر
+    private int anchorRelativeX = 0;
+    private int anchorRelativeY = 0;
     private int anchorSimilarity = 75;
     private int anchorTolerance = 35;
 
