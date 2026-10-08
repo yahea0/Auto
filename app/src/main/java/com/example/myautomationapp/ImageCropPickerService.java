@@ -31,6 +31,7 @@ public class ImageCropPickerService extends Service {
     private int targetClickX, targetClickY;
     private boolean isStandaloneClickImage = false;
     private boolean isCustomRegionPicker = false;
+    private boolean isAlternateTemplate = false; // قص لقطة زوم إضافية لنفس المعسكر
 
     @Nullable
     @Override
@@ -43,6 +44,7 @@ public class ImageCropPickerService extends Service {
             targetClickY = intent.getIntExtra("target_y", 1000);
             isStandaloneClickImage = intent.getBooleanExtra("is_click_image", false);
             isCustomRegionPicker = intent.getBooleanExtra("is_custom_region", false);
+            isAlternateTemplate = intent.getBooleanExtra("is_alternate_template", false);
         }
         return START_NOT_STICKY;
     }
@@ -223,7 +225,8 @@ public class ImageCropPickerService extends Service {
                 e.printStackTrace();
             }
 
-            Intent intent = new Intent(isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
+            String actionName = isAlternateTemplate ? "ALTERNATE_TEMPLATE_CROPPED" : (isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
+            Intent intent = new Intent(actionName);
             intent.setPackage(getPackageName());
             intent.putExtra("crop_x", realX);
             intent.putExtra("crop_y", realY);
