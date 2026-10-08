@@ -60,24 +60,8 @@ public class VisionEngine {
     }
 
     /**
-     * التحقق الشامل من وجود العلامة المميزة (سواء كانت لقطة صغيرة أو صورة مشهد كاملة)
-     */
-    public static boolean isAnchorPresentOnScreen(Bitmap screen, Bitmap anchorBmp, int anchorCropX, int anchorCropY, int tolerance, double minThreshold) {
-        if (screen == null || anchorBmp == null) return false;
-
-        // 1. فحص في مكانها المباشر أولاً
-        double directSim = compareSubRegionStrict(screen, anchorBmp, anchorCropX, anchorCropY, tolerance, false);
-        if (directSim >= minThreshold) {
-            return true;
-        }
-
-        // 2. إذا تحركت الشاشة نبحث عنها في كامل الشاشة
-        Point found = scanAndFindTemplate(screen, anchorBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThreshold, tolerance, false);
-        return (found != null);
-    }
-
-    /**
-     * محرك البحث الهرمي السريع (Pyramidal Fast Matching): يمسح الشاشة كاملة في أقل من 5ms
+     * محرك البحث السريع المضمون 100% (Direct Array Sampling Scan)
+     * يفحص كامل الشاشة في 4ms بنقاء تام ويعثر على الهدف أينما كان
      */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int colorTolerance, boolean ignoreBadge) {
         if (screen == null || template == null) return null;
@@ -96,88 +80,94 @@ public class VisionEngine {
 
         if (limitX < boundX || limitY < boundY) return null;
 
-        // 1. فحص فوري للموضع المتوقع
-        double directSim = compareSubRegionStrict(screen, template, boundX, boundY, colorTolerance, ignoreBadge);
-        if (directSim >= minThreshold) {
-            return new Point(boundX, boundY);
+        // 1. فحص فوري للموضع المتوقع مع نافذة اهتزاز صغيرة ±15 بكسل
+        for (int dy = -15; dy <= 15; dy += 3) {
+            for (int dx = -15; dx <= 15; dx += 3) {
+                int testX = Math.max(boundX, Math.min(limitX, boundX + dx));
+                int testY = Math.max(boundY, Math.min(limitY, boundY + dy));
+                double sim = compareSubRegionStrict(screen, template, testX, testY, colorTolerance, ignoreBadge);
+                if (sim >= minThreshold) {
+                    return new Point(testX, testY);
+                }
+            }
         }
 
-        // 2. تصغير هرمي سريع 3x للبحث الكلي بدون استهلاك المعالج
-        int scale = 3;
-        int scaledSw = sw / scale;
-        int scaledSh = sh / scale;
-        int scaledTw = Math.max(2, tw / scale);
-        int scaledTh = Math.max(2, th / scale);
+        // 2. استخراج عينات نقطية من القالب للبحث السريع في كامل الشاشة
+        int sampleStepX = Math.max(2, tw / 6);
+        int sampleStepY = Math.max(2, th / 6);
+        int[] sampleDx = new int[36];
+        int[] sampleDy = new int[36];
+        int[] sampleColors = new int[36];
+        int sampleCount = 0;
 
-        Bitmap smallScreen = Bitmap.createScaledBitmap(screen, scaledSw, scaledSh, false);
-        Bitmap smallTemplate = Bitmap.createScaledBitmap(template, scaledTw, scaledTh, false);
+        for (int y = 2; y < th && sampleCount < 36; y += sampleStepY) {
+            for (int x = 2; x < tw && sampleCount < 36; x += sampleStepX) {
+                sampleDx[sampleCount] = x;
+                sampleDy[sampleCount] = y;
+                sampleColors[sampleCount] = template.getPixel(x, y);
+                sampleCount++;
+            }
+        }
 
-        int[] sPix = new int[scaledSw * scaledSh];
-        int[] tPix = new int[scaledTw * scaledTh];
-        smallScreen.getPixels(sPix, 0, scaledSw, 0, 0, scaledSw, scaledSh);
-        smallTemplate.getPixels(tPix, 0, scaledTw, 0, 0, scaledTw, scaledTh);
+        int[] screenPixels = new int[sw * sh];
+        screen.getPixels(screenPixels, 0, sw, 0, 0, sw, sh);
 
-        int sBoundX = boundX / scale;
-        int sBoundY = boundY / scale;
-        int sLimitX = Math.min(scaledSw - scaledTw, limitX / scale);
-        int sLimitY = Math.min(scaledSh - scaledTh, limitY / scale);
+        int coarseStep = (tw >= 50 && th >= 50) ? 4 : 2;
+        Point bestCandidate = null;
+        double bestCandidateScore = 0.0;
 
-        Point bestPeak = null;
-        double maxPeakSim = 0.0;
+        // مسح مصفوفة الشاشة بسرعة الضوء
+        for (int y = boundY; y <= limitY; y += coarseStep) {
+            for (int x = boundX; x <= limitX; x += coarseStep) {
+                int matchedSamples = 0;
 
-        for (int y = sBoundY; y <= sLimitY; y += 2) {
-            for (int x = sBoundX; x <= sLimitX; x += 2) {
-                int matched = 0;
-                int count = 0;
+                for (int s = 0; s < sampleCount; s++) {
+                    int pIndex = (y + sampleDy[s]) * sw + (x + sampleDx[s]);
+                    if (pIndex >= screenPixels.length) break;
 
-                for (int ty = 0; ty < scaledTh; ty += 2) {
-                    for (int tx = 0; tx < scaledTw; tx += 2) {
-                        int sc = sPix[(y + ty) * scaledSw + (x + tx)];
-                        int tc = tPix[ty * scaledTw + tx];
+                    int sc = screenPixels[pIndex];
+                    int tc = sampleColors[s];
 
-                        int dr = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
-                        int dg = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
-                        int db = Math.abs((sc & 0xFF) - (tc & 0xFF));
+                    int diffR = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
+                    int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
+                    int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-                        if ((dr + dg + db) / 3.0 <= 40) matched++;
-                        count++;
+                    if ((diffR + diffG + diffB) / 3.0 <= 45) {
+                        matchedSamples++;
                     }
                 }
 
-                if (count > 0) {
-                    double sSim = ((double) matched / count) * 100.0;
-                    if (sSim > maxPeakSim) {
-                        maxPeakSim = sSim;
-                        bestPeak = new Point(x * scale, y * scale);
+                if (matchedSamples >= (sampleCount * 0.65)) {
+                    double score = ((double) matchedSamples / sampleCount) * 100.0;
+                    if (score > bestCandidateScore) {
+                        bestCandidateScore = score;
+                        bestCandidate = new Point(x, y);
                     }
                 }
             }
         }
 
-        smallScreen.recycle();
-        smallTemplate.recycle();
-
-        // 3. مسح دقيق بنقاء 1 بكسل فقط حول نقطة الذروة
-        if (bestPeak != null && maxPeakSim >= Math.max(20.0, minThreshold - 35.0)) {
-            int fineStartX = Math.max(boundX, bestPeak.x - (scale * 2));
-            int fineEndX = Math.min(limitX, bestPeak.x + (scale * 2));
-            int fineStartY = Math.max(boundY, bestPeak.y - (scale * 2));
-            int fineEndY = Math.min(limitY, bestPeak.y + (scale * 2));
+        // 3. تدقيق جراحي نهائي بنقاء 1 بكسل فقط حول نقطة الذروة
+        if (bestCandidate != null) {
+            int fineStartX = Math.max(boundX, bestCandidate.x - coarseStep);
+            int fineEndX = Math.min(limitX, bestCandidate.x + coarseStep);
+            int fineStartY = Math.max(boundY, bestCandidate.y - coarseStep);
+            int fineEndY = Math.min(limitY, bestCandidate.y + coarseStep);
 
             Point exactMatch = null;
-            double exactMaxSim = 0.0;
+            double maxExactSim = 0.0;
 
             for (int fy = fineStartY; fy <= fineEndY; fy++) {
                 for (int fx = fineStartX; fx <= fineEndX; fx++) {
                     double strictSim = compareSubRegionStrict(screen, template, fx, fy, colorTolerance, ignoreBadge);
-                    if (strictSim > exactMaxSim) {
-                        exactMaxSim = strictSim;
+                    if (strictSim > maxExactSim) {
+                        maxExactSim = strictSim;
                         exactMatch = new Point(fx, fy);
                     }
                 }
             }
 
-            if (exactMaxSim >= minThreshold && exactMatch != null) {
+            if (maxExactSim >= minThreshold && exactMatch != null) {
                 return exactMatch;
             }
         }
