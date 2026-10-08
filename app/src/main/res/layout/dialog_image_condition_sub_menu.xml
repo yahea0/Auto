@@ -10,7 +10,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxHeight="480dp">
+        android:maxHeight="440dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -151,7 +151,6 @@
                     app:tint="#C084FC" />
             </LinearLayout>
 
-            <!-- خط فاصل لميزات الذكاء الاصطناعي الجديدة -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
@@ -159,7 +158,7 @@
                 android:layout_marginTop="4dp"
                 android:layout_marginBottom="4dp" />
 
-            <!-- 7. إضافة لقطة جديدة لنفس الهدف (Zoom In / Zoom Out) -->
+            <!-- 7. فتح مدير القوالب المتعددة الشامل (Multi-Templates Manager) -->
             <LinearLayout
                 android:id="@+id/subOptAddAlternateTemplate"
                 android:layout_width="match_parent"
@@ -172,7 +171,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Add Template (Zoom/Angle)"
+                    android:text="Manage Templates (x1)"
                     android:textColor="#00E5FF"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -181,30 +180,6 @@
                     android:layout_height="22dp"
                     android:src="@android:drawable/ic_input_add"
                     app:tint="#00E5FF" />
-            </LinearLayout>
-
-            <!-- 8. تفعيل رصد جميع المعسكرات المتطابقة على الشاشة (All Targets Mode) -->
-            <LinearLayout
-                android:id="@+id/subOptToggleMultiTarget"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:gravity="center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
-                <TextView
-                    android:id="@+id/tvMultiTargetStatus"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Target: All Camps (6/6)"
-                    android:textColor="#22C55E"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-                <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:src="@android:drawable/ic_menu_myplaces"
-                    app:tint="#22C55E" />
             </LinearLayout>
 
         </LinearLayout>
