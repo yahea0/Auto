@@ -31,6 +31,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
@@ -38,6 +39,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -199,17 +201,18 @@ public class FloatingWindowService extends Service {
         };
         ContextCompat.registerReceiver(this, customRegionReceiver, new IntentFilter("CUSTOM_REGION_SELECTED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
-        // استقبال لقطات الزوم والزوايا الإضافية لنفس الهدف
         alternateTemplateReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (currentTargetForAlternateTemplate != null) {
                     String altPath = intent.getStringExtra("image_path");
                     if (altPath != null) {
-                        currentTargetForAlternateTemplate.addAlternateImagePath(altPath);
+                        String name = new File(altPath).getName().replace(".png", "");
+                        TemplateItem newItem = new TemplateItem("alt_" + System.currentTimeMillis(), altPath, name);
+                        currentTargetForAlternateTemplate.addTemplateItem(newItem);
                         updateHudActionCards();
                         openHudBar();
-                        Toast.makeText(FloatingWindowService.this, "تم تدريب الماكرو على زاوية/زوم إضافية للهدف!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(FloatingWindowService.this, "تمت إضافة قالب تدريب جديد للمعسكر بنجاح!", Toast.LENGTH_SHORT).show();
                     }
                 }
             }
@@ -481,6 +484,8 @@ public class FloatingWindowService extends Service {
             ImageView ivIcon = card.findViewById(R.id.ivActionIcon);
             View branchLayout = card.findViewById(R.id.layoutConditionBranch);
 
+            int poolSize = Math.max(1, action.getTemplatePool().size());
+
             if ("Click Image".equals(action.getType())) {
                 ivIcon.setImageResource(android.R.drawable.ic_menu_gallery);
                 String offsetTag = "[" + (action.getOffsetX() >= 0 ? action.getOffsetX() + "+" : action.getOffsetX()) + "/" + (action.getOffsetY() >= 0 ? action.getOffsetY() + "+" : action.getOffsetY()) + "]";
@@ -489,9 +494,7 @@ public class FloatingWindowService extends Service {
 
                 branchLayout.setVisibility(View.VISIBLE);
                 TextView tvCondTitle = card.findViewById(R.id.tvConditionTitle);
-                int poolSize = 1 + action.getAlternateImagePaths().size();
-                String targetMode = action.isMultiTargetEnabled() ? " [All Targets]" : "";
-                tvCondTitle.setText("Image [" + action.getImageName() + "] [x" + poolSize + "]" + targetMode + " [" + action.getSimilarity() + "%]");
+                tvCondTitle.setText("Image [" + action.getImageName() + "] [x" + poolSize + "] [" + action.getSimilarity() + "%]");
 
                 TextView tvCondSub = card.findViewById(R.id.tvConditionSubtitle);
                 tvCondSub.setText(getDisplayLocationLabel(action));
@@ -522,7 +525,6 @@ public class FloatingWindowService extends Service {
                 if (action.hasCondition()) {
                     branchLayout.setVisibility(View.VISIBLE);
                     TextView tvCondTitle = card.findViewById(R.id.tvConditionTitle);
-                    int poolSize = 1 + action.getAlternateImagePaths().size();
                     String state = action.isNotAppear() ? "[Not Appear]" : "[Appear]";
                     tvCondTitle.setText("Image [" + action.getImageName() + "] [x" + poolSize + "] " + state + " [" + action.getSimilarity() + "%]");
 
@@ -719,7 +721,7 @@ public class FloatingWindowService extends Service {
             dialog.dismiss();
             action.setDisabled(!action.isDisabled());
             updateHudActionCards();
-            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, action.isDisabled() ? "تم تعطيل الأكشن (تخطي)" : "تم تفعيل الأكشن", Toast.LENGTH_SHORT).show();
         });
 
         View.OnClickListener simpleDismiss = v -> {
@@ -737,7 +739,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * قائمة إعدادات شرط الصورة مع الخيارات الذكية لتدريب الزوم ورصد كافة المعسكرات
+     * قائمة إعدادات شرط الصورة مع فتح مدير القوالب المتعددة وتعديل إعدادات كل لقطة
      */
     private void showImageConditionSubMenu(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
@@ -783,7 +785,7 @@ public class FloatingWindowService extends Service {
                     if (screen != null && action.getImagePath() != null) {
                         Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
                         if (template != null) {
-                            double exactSim = VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+                            double exactSim = calculateActionSimilarity(screen, template, action);
                             int recommended = MacroAiInspector.getRecommendedSimilarity(exactSim);
                             String availableRates = MacroAiInspector.generateAvailablePassingPercentages(exactSim);
                             showAiResultProDialog(action, exactSim, recommended, availableRates);
@@ -802,21 +804,16 @@ public class FloatingWindowService extends Service {
             Toast.makeText(this, "تم نسخ الشرط!", Toast.LENGTH_SHORT).show();
         });
 
-        // 7. إضافة لقطة جديدة لنفس الهدف (Zoom In / Zoom Out)
+        // فتح مدير القوالب المتعددة لرؤية كل الصور وتعديل إعداداتها وعزل اللفل (صورة 1)
         TextView tvCount = dialogView.findViewById(R.id.tvAlternateTemplatesCount);
         if (tvCount != null) {
-            tvCount.setText("Add Template (x" + (1 + action.getAlternateImagePaths().size()) + " Trained)");
+            tvCount.setText("Manage Templates (x" + action.getTemplatePool().size() + " Trained)");
         }
         dialogView.findViewById(R.id.subOptAddAlternateTemplate).setOnClickListener(v -> {
             dialog.dismiss();
-            closeHudBar();
-            currentTargetForAlternateTemplate = action;
-            Intent intent = new Intent(this, ImageCropPickerService.class);
-            intent.putExtra("is_alternate_template", true);
-            startService(intent);
+            showTemplateManagerDialog(action);
         });
 
-        // 8. تبديل نمط رصد جميع المعسكرات vs هدف واحد
         TextView tvMultiTarget = dialogView.findViewById(R.id.tvMultiTargetStatus);
         if (tvMultiTarget != null) {
             tvMultiTarget.setText(action.isMultiTargetEnabled() ? "Target: All Camps (Multi-Click)" : "Target: Single Camp (First)");
@@ -832,34 +829,188 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * رصد جميع مراكز الأهداف المطابقة على الشاشة دفعة واحدة (مع دعم اللقطات المتعددة للزوم)
+     * نافذة مدير القوالب المتعددة: قائمة قابلة للتمرير مع إمكانية تعديل إعدادات كل صورة وحذفها وإضافة لقطات جديدة
+     */
+    private void showTemplateManagerDialog(Action action) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_template_manager, null);
+
+        AlertDialog dialog = new AlertDialog.Builder(themedContext)
+                .setView(dialogView)
+                .create();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+
+        TextView tvHeader = dialogView.findViewById(R.id.tvManagerHeaderTitle);
+        tvHeader.setText("Templates (" + action.getTemplatePool().size() + " Trained)");
+
+        LinearLayout listContainer = dialogView.findViewById(R.id.layoutTemplatesListContainer);
+        listContainer.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(themedContext);
+
+        List<TemplateItem> pool = action.getTemplatePool();
+        for (int i = 0; i < pool.size(); i++) {
+            final int itemIndex = i;
+            final TemplateItem item = pool.get(i);
+
+            View card = inflater.inflate(R.layout.item_exist_image_card, listContainer, false);
+            ImageView ivThumb = card.findViewById(R.id.ivExistThumbPreview);
+            TextView tvName = card.findViewById(R.id.tvExistImageName);
+            TextView tvDim = card.findViewById(R.id.tvExistImageDimensions);
+
+            Bitmap bmp = BitmapFactory.decodeFile(item.getImagePath());
+            if (bmp != null) {
+                ivThumb.setImageBitmap(bmp);
+                tvDim.setText("[" + bmp.getWidth() + "x" + bmp.getHeight() + "px] • Sim: " + item.getSimilarity() + "% • Sun: " + item.getColorTolerance());
+            }
+            tvName.setText((itemIndex == 0 ? "★ Primary: " : "Alt " + itemIndex + ": ") + item.getName());
+
+            // عند الضغط على الكرت -> فتح إعدادات هذه اللقطة بالتفصيل
+            card.setOnClickListener(v -> {
+                dialog.dismiss();
+                showIndividualTemplateSettingsDialog(action, item);
+            });
+
+            listContainer.addView(card);
+        }
+
+        // زر إضافة لقطة جديدة للهدف
+        dialogView.findViewById(R.id.btnAddNewTrainedTemplate).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            currentTargetForAlternateTemplate = action;
+            Intent intent = new Intent(this, ImageCropPickerService.class);
+            intent.putExtra("is_alternate_template", true);
+            startService(intent);
+        });
+
+        dialogView.findViewById(R.id.btnCloseTemplateManager).setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
+    }
+
+    /**
+     * نافذة إعدادات اللقطة الواحدة: نسبة التطابق، تساهل أشعة الشمس، عزل لفل 1 إلى 10، وتعديل البكسل (+/-)
+     */
+    private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_template_settings, null);
+
+        AlertDialog dialog = new AlertDialog.Builder(themedContext)
+                .setView(dialogView)
+                .create();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+
+        TextView tvTitle = dialogView.findViewById(R.id.tvTemplateSettingsTitle);
+        tvTitle.setText("Settings: " + item.getName());
+
+        EditText etSim = dialogView.findViewById(R.id.etTemplateSim);
+        etSim.setText(String.valueOf(item.getSimilarity()));
+
+        EditText etTol = dialogView.findViewById(R.id.etTemplateTolerance);
+        etTol.setText(String.valueOf(item.getColorTolerance()));
+
+        Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
+        swLevel.setChecked(item.isIgnoreLevelBadge());
+
+        // أزرار تعديل الحجم بالبكسل (+/- 1px)
+        dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> trimTemplateBitmap(item, -1, 0));
+        dialogView.findViewById(R.id.btnTrimWPlus).setOnClickListener(v -> trimTemplateBitmap(item, 1, 0));
+        dialogView.findViewById(R.id.btnTrimHMinus).setOnClickListener(v -> trimTemplateBitmap(item, 0, -1));
+        dialogView.findViewById(R.id.btnTrimHPlus).setOnClickListener(v -> trimTemplateBitmap(item, 0, 1));
+
+        dialogView.findViewById(R.id.btnSaveTemplateSettings).setOnClickListener(v -> {
+            String sVal = etSim.getText().toString();
+            String tVal = etTol.getText().toString();
+            int sim = sVal.isEmpty() ? 70 : Integer.parseInt(sVal);
+            int tol = tVal.isEmpty() ? 30 : Integer.parseInt(tVal);
+
+            item.setSimilarity(Math.max(1, Math.min(100, sim)));
+            item.setColorTolerance(Math.max(10, Math.min(80, tol)));
+            item.setIgnoreLevelBadge(swLevel.isChecked());
+
+            updateHudActionCards();
+            dialog.dismiss();
+            Toast.makeText(this, "تم حفظ إعدادات القالب وعزل اللفل بنجاح!", Toast.LENGTH_SHORT).show();
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * تعديل حواف الصورة بالبكسل الواحد (+/- 1px)
+     */
+    private void trimTemplateBitmap(TemplateItem item, int dw, int dh) {
+        try {
+            File f = new File(item.getImagePath());
+            Bitmap bmp = BitmapFactory.decodeFile(f.getAbsolutePath());
+            if (bmp != null) {
+                int newW = Math.max(10, bmp.getWidth() + dw);
+                int newH = Math.max(10, bmp.getHeight() + dh);
+
+                Bitmap trimmed = Bitmap.createBitmap(bmp, 0, 0, Math.min(newW, bmp.getWidth()), Math.min(newH, bmp.getHeight()));
+                FileOutputStream fos = new FileOutputStream(f);
+                trimmed.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                fos.close();
+
+                item.setWidth(newW); item.setHeight(newH);
+                Toast.makeText(this, "الأبعاد الجديدة: " + newW + " x " + newH + " px", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private double calculateActionSimilarity(Bitmap screen, Bitmap template, Action action) {
+        String mode = action.getDetectLocationMode();
+        if ("FULL_SCREEN".equals(mode)) {
+            Point p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), 25.0);
+            if (p != null) {
+                return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
+            }
+            return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+        } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
+            Point p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), 25.0);
+            if (p != null) {
+                return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
+            }
+            return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+        }
+        return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+    }
+
+    /**
+     * رصد جميع مراكز الأهداف المطابقة على الشاشة دفعة واحدة مع مراعاة إعدادات كل لقطة وعزل اللفل وتساهل الشمس
      */
     private List<Point> findAllMatchCentersForAction(Bitmap screen, Action action, int maxMatches) {
         List<Point> allCenters = new ArrayList<>();
         if (screen == null) return allCenters;
 
-        List<String> allPaths = new ArrayList<>();
-        if (action.getImagePath() != null) allPaths.add(action.getImagePath());
-        allPaths.addAll(action.getAlternateImagePaths());
-
+        List<TemplateItem> pool = action.getTemplatePool();
         String mode = action.getDetectLocationMode();
-        double minThresh = action.getSimilarity();
 
-        for (String path : allPaths) {
-            Bitmap tBmp = BitmapFactory.decodeFile(path);
+        for (TemplateItem item : pool) {
+            Bitmap tBmp = BitmapFactory.decodeFile(item.getImagePath());
             if (tBmp == null) continue;
 
             int tw = tBmp.getWidth();
             int th = tBmp.getHeight();
+            double minThresh = item.getSimilarity();
+            int tolerance = item.getColorTolerance();
+            boolean ignoreBadge = item.isIgnoreLevelBadge();
 
             if ("FULL_SCREEN".equals(mode)) {
-                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, maxMatches);
+                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, tolerance, ignoreBadge, maxMatches);
                 for (Point p : matches) allCenters.add(new Point(p.x + (tw / 2), p.y + (th / 2)));
             } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh, maxMatches);
+                List<Point> matches = VisionEngine.scanAndFindAllTemplates(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh, tolerance, ignoreBadge, maxMatches);
                 for (Point p : matches) allCenters.add(new Point(p.x + (tw / 2), p.y + (th / 2)));
             } else {
-                double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY());
+                double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
                 if (sim >= minThresh) {
                     allCenters.add(new Point(action.getCropX() + (tw / 2), action.getCropY() + (th / 2)));
                 }
@@ -1243,7 +1394,6 @@ public class FloatingWindowService extends Service {
         builder.setItems(styles, (d, which) -> {
             action.setClickStyle(styles[which]);
             updateHudActionCards();
-            Toast.makeText(this, "النمط: " + styles[which], Toast.LENGTH_SHORT).show();
         });
 
         AlertDialog dialog = builder.create();
@@ -1315,7 +1465,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو التلقائي المستمر مع النقر المتسلسل على جميع المعسكرات المرصودة على الشاشة!
+     * تشغيل الماكرو المستمر: مع دعم رصد المعسكرات بجميع مستوياتها (1 إلى 10) وتساهل الإضاءة وسرعة الذاكرة
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
@@ -1358,11 +1508,9 @@ public class FloatingWindowService extends Service {
                         if ("Click Image".equals(type)) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null) {
-                                // رصد جميع المعسكرات المتطابقة على الشاشة (حتى 15 هدفاً)
                                 int maxTargetsToClick = action.isMultiTargetEnabled() ? 15 : 1;
                                 List<Point> targets = findAllMatchCentersForAction(screen, action, maxTargetsToClick);
 
-                                // النقر المتسلسل على كل معسكر وراء الآخر!
                                 for (Point targetCenter : targets) {
                                     if (!isMacroRunning) break;
                                     int clickTargetX = targetCenter.x + action.getOffsetX();
