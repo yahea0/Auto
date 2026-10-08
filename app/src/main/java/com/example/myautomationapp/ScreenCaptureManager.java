@@ -18,10 +18,6 @@ import android.view.WindowManager;
 
 import java.nio.ByteBuffer;
 
-/**
- * محرك التقاط الشاشة المباشر فائق السرعة (Real-Time 120 FPS Stream Pipeline)
- * مصمم لتفادي الـ Garbage Collector عبر حجز الذاكرة مسبقاً (Zero Allocation).
- */
 public class ScreenCaptureManager {
     private static ScreenCaptureManager instance;
     private MediaProjection mediaProjection;
@@ -32,11 +28,10 @@ public class ScreenCaptureManager {
 
     private int screenWidth, screenHeight, screenDensity;
 
-    // نظام التخزين المزدوج (Double-Buffering)
-    private Bitmap frontBitmap;
-    private Bitmap backBitmap;
+    private Bitmap masterBitmap;
     private final Object frameLock = new Object();
-    private ByteBuffer cleanDirectBuffer;
+    private byte[] rowByteArray;
+    private ByteBuffer cleanBuffer;
 
     private volatile boolean isRunning = false;
 
@@ -58,10 +53,9 @@ public class ScreenCaptureManager {
         screenHeight = realDm.heightPixels;
         screenDensity = realDm.densityDpi;
 
-        // حجز نسختين من الصور مسبقاً لمنع إنشائها داخل حلقة التكرار
-        frontBitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
-        backBitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
-        cleanDirectBuffer = ByteBuffer.allocateDirect(screenWidth * screenHeight * 4);
+        masterBitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
+        rowByteArray = new byte[screenWidth * 4];
+        cleanBuffer = ByteBuffer.allocateDirect(screenWidth * screenHeight * 4);
 
         MediaProjectionManager mpm = (MediaProjectionManager) context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         if (mpm != null) {
@@ -77,13 +71,11 @@ public class ScreenCaptureManager {
     private void setupLiveCapture() {
         if (mediaProjection == null) return;
 
-        // تخصيص خيط معالجة بأعلى أولوية رسومية في أندرويد لضمان استقرار الـ 120Hz
-        captureThread = new HandlerThread("Realme120FpsCaptureThread", Process.THREAD_PRIORITY_URGENT_DISPLAY);
+        captureThread = new HandlerThread("ScreenCapture120Hz", Process.THREAD_PRIORITY_URGENT_DISPLAY);
         captureThread.start();
         captureHandler = new Handler(captureThread.getLooper());
 
-        // سعة طابور 2 لإلغاء تأخير الفريمات والحصول على الصورة اللحظية فوراً
-        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2);
+        imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 3);
         isRunning = true;
 
         imageReader.setOnImageAvailableListener(reader -> {
@@ -97,30 +89,28 @@ public class ScreenCaptureManager {
                     int rowStride = plane.getRowStride();
                     int rowPadding = rowStride - (pixelStride * screenWidth);
 
-                    if (rowPadding == 0) {
-                        backBitmap.copyPixelsFromBuffer(buffer);
-                    } else {
-                        cleanDirectBuffer.clear();
-                        int rowBytes = screenWidth * 4;
-                        int srcPos = 0;
-                        for (int r = 0; r < screenHeight; r++) {
-                            buffer.position(srcPos);
-                            buffer.limit(srcPos + rowBytes);
-                            cleanDirectBuffer.put(buffer);
-                            srcPos += rowStride;
-                        }
-                        cleanDirectBuffer.rewind();
-                        backBitmap.copyPixelsFromBuffer(cleanDirectBuffer);
-                    }
-
-                    // تبديل الفريمات بلحظة واحدة وبدون استهلاك للذاكرة
                     synchronized (frameLock) {
-                        Bitmap temp = frontBitmap;
-                        frontBitmap = backBitmap;
-                        backBitmap = temp;
+                        if (rowPadding == 0) {
+                            buffer.rewind();
+                            masterBitmap.copyPixelsFromBuffer(buffer);
+                        } else {
+                            cleanBuffer.clear();
+                            int rowBytes = screenWidth * 4;
+                            for (int y = 0; y < screenHeight; y++) {
+                                int offset = y * rowStride;
+                                if (offset + rowBytes <= buffer.capacity()) {
+                                    buffer.position(offset);
+                                    buffer.get(rowByteArray, 0, rowBytes);
+                                    cleanBuffer.put(rowByteArray, 0, rowBytes);
+                                }
+                            }
+                            cleanBuffer.rewind();
+                            masterBitmap.copyPixelsFromBuffer(cleanBuffer);
+                        }
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                e.printStackTrace();
             } finally {
                 if (image != null) {
                     image.close();
@@ -129,7 +119,7 @@ public class ScreenCaptureManager {
         }, captureHandler);
 
         virtualDisplay = mediaProjection.createVirtualDisplay(
-                "Live120FpsVirtualDisplay",
+                "LiveCaptureDisplay",
                 screenWidth, screenHeight, screenDensity,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 imageReader.getSurface(), null, captureHandler
@@ -137,24 +127,12 @@ public class ScreenCaptureManager {
     }
 
     /**
-     * إرجاع الفريم الحي المباشر دون عمل copy() لضمان استجابة صفرية التأخير.
+     * إرجاع لقطة شاشة حية غير قابلة للتلف حتى عند استدعاء recycle() من قِص الشريط المطاطي
      */
     public Bitmap captureScreen() {
         synchronized (frameLock) {
-            if (frontBitmap != null && !frontBitmap.isRecycled()) {
-                return frontBitmap;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * لحفظ لقطة شاشة كملف مستقل دون التأثير على البث المباشر.
-     */
-    public Bitmap captureScreenSnapshot() {
-        synchronized (frameLock) {
-            if (frontBitmap != null && !frontBitmap.isRecycled()) {
-                return frontBitmap.copy(Bitmap.Config.ARGB_8888, false);
+            if (masterBitmap != null && !masterBitmap.isRecycled()) {
+                return masterBitmap.copy(Bitmap.Config.ARGB_8888, false);
             }
         }
         return null;
