@@ -3,6 +3,10 @@ package com.example.myautomationapp;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 
+/**
+ * محرك البحث والتحقق (Macrorify OpenCV TM_CCOEFF_NORMED Engine)
+ * ينفذ معادلة الارتباط المقنن القياسية مع حارس التباين والمسح الهرمي فائق السرعة.
+ */
 public class VisionEngine {
 
     public static Point findActionTarget(Bitmap screen, Bitmap template, Action action) {
@@ -30,6 +34,7 @@ public class VisionEngine {
             searchW = action.getCustomRegionW();
             searchH = action.getCustomRegionH();
         } else {
+            // Full Screen
             searchX = 0;
             searchY = 0;
             searchW = sw;
@@ -40,6 +45,9 @@ public class VisionEngine {
         return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, 30, false);
     }
 
+    /**
+     * المسح والتطابق عبر معادلة Macrorify القياسية
+     */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template,
                                            int searchX, int searchY, int searchW, int searchH,
                                            int expectedX, int expectedY,
@@ -61,12 +69,12 @@ public class VisionEngine {
 
         if (limitW < tw || limitH < effectiveTh) return null;
 
-        // 1. المسار الفوري لوضع Captured Location
+        // 1. الفحص الفوري لوضع Captured Location (< 1ms)
         if (expectedX >= 0 && expectedY >= 0) {
             int testX = Math.max(boundX, Math.min(sw - tw, expectedX));
             int testY = Math.max(boundY, Math.min(sh - effectiveTh, expectedY));
 
-            double directSim = compareSubRegionStrict(screen, template, testX, testY, colorTolerance, ignoreBadge);
+            double directSim = matchTemplateScore(screen, template, testX, testY, colorTolerance, ignoreBadge);
             if (directSim >= minThreshold) {
                 return new Point(testX, testY);
             }
@@ -78,7 +86,7 @@ public class VisionEngine {
                     int curX = testX + dx;
                     int curY = testY + dy;
                     if (curX >= boundX && curX + tw <= sw && curY >= boundY && curY + effectiveTh <= sh) {
-                        double s = compareSubRegionStrict(screen, template, curX, curY, colorTolerance, ignoreBadge);
+                        double s = matchTemplateScore(screen, template, curX, curY, colorTolerance, ignoreBadge);
                         if (s > localMax) {
                             localMax = s;
                             localBest = new Point(curX, curY);
@@ -91,7 +99,7 @@ public class VisionEngine {
             }
         }
 
-        // 2. الفحص الهرمي السريع (Pyramid Multi-Scale)
+        // 2. الهرم متعدد المقاييس (Pyramid TM_CCOEFF_NORMED) لوضعي Full Screen و Custom Region
         int scale = (limitW > 400 && limitH > 400) ? 4 : 2;
 
         int pyrSw = limitW / scale;
@@ -101,6 +109,7 @@ public class VisionEngine {
 
         if (pyrSw < pyrTw || pyrSh < pyrTh) return null;
 
+        // استخراج مصفوفة التدرج الرمادي للقالب مع طرح المتوسط (Zero-Mean Template)
         float[] tplLuma = new float[pyrTw * pyrTh];
         float tplSum = 0;
         int[] tplColors = new int[tw * effectiveTh];
@@ -108,9 +117,7 @@ public class VisionEngine {
 
         for (int y = 0; y < pyrTh; y++) {
             for (int x = 0; x < pyrTw; x++) {
-                int origX = x * scale;
-                int origY = y * scale;
-                int c = tplColors[origY * tw + origX];
+                int c = tplColors[(y * scale) * tw + (x * scale)];
                 float lum = (((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 151 + (c & 0xFF) * 28) >> 8;
                 tplLuma[y * pyrTw + x] = lum;
                 tplSum += lum;
@@ -126,6 +133,7 @@ public class VisionEngine {
 
         if (tplVar < 10.0f) tplVar = 10.0f;
 
+        // مصفوفة الشاشة الرمادية لمنطقة البحث (ROI)
         int[] screenRoi = new int[limitW * limitH];
         screen.getPixels(screenRoi, 0, limitW, boundX, boundY, limitW, limitH);
 
@@ -163,8 +171,10 @@ public class VisionEngine {
                     }
                 }
 
+                // حارس التباين: إسقاط الخلفيات الملساء والفارغة فوراً
                 if (patchVar < 25.0f || cross <= 0) continue;
 
+                // معادلة OpenCV TM_CCOEFF_NORMED
                 float corr = cross / (float) (Math.sqrt(patchVar * tplVar) + 1e-4);
                 if (corr > bestCorr) {
                     bestCorr = corr;
@@ -178,7 +188,7 @@ public class VisionEngine {
             return null;
         }
 
-        // 3. الفحص الجراحي الدقيق (Fine Refinement)
+        // 3. التدقيق الجراحي الأصلي في المستوى 0 بدقة 1 بكسل
         int fineStartX = Math.max(boundX, boundX + candX - (scale * 2));
         int fineEndX = Math.min(boundX + limitW - tw, boundX + candX + (scale * 2));
         int fineStartY = Math.max(boundY, boundY + candY - (scale * 2));
@@ -189,10 +199,10 @@ public class VisionEngine {
 
         for (int fy = fineStartY; fy <= fineEndY; fy++) {
             for (int fx = fineStartX; fx <= fineEndX; fx++) {
-                double sim = compareSubRegionStrict(screen, template, fx, fy, colorTolerance, ignoreBadge);
+                double sim = matchTemplateScore(screen, template, fx, fy, colorTolerance, ignoreBadge);
                 if (sim > maxFinalSim) {
                     maxFinalSim = sim;
-                    finalPoint = new Point(fx, fy); // إرجاع أعلى اليسار لكي يضيف الفلوتي نصف الأبعاد بدقة
+                    finalPoint = new Point(fx, fy);
                 }
             }
         }
@@ -204,7 +214,10 @@ public class VisionEngine {
         return null;
     }
 
-    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
+    /**
+     * حساب نسبة التطابق بمعادلة TM_CCOEFF_NORMED مع فحص تطابق القنوات اللونية
+     */
+    public static double matchTemplateScore(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null || screen.isRecycled() || template.isRecycled()) return 0.0;
 
         int tw = template.getWidth();
@@ -278,12 +291,17 @@ public class VisionEngine {
             corr = Math.max(0.0, cross / (Math.sqrt(pVar * tVar) + 1e-4));
         }
 
+        // دمج 65% للارتباط الهيكلي البنيوي + 35% لتطابق الألوان كما في Macrorify
         double finalScore = (corr * 0.65 + colorRatio * 0.35) * 100.0;
         return Math.min(100.0, finalScore);
     }
 
+    public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
+        return matchTemplateScore(screen, template, cropX, cropY, colorTolerance, ignoreBottomBadge);
+    }
+
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
-        return compareSubRegionStrict(screen, template, cropX, cropY, 30, false);
+        return matchTemplateScore(screen, template, cropX, cropY, 30, false);
     }
 
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
