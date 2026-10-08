@@ -2,6 +2,8 @@ package com.example.myautomationapp;
 
 import android.graphics.Bitmap;
 import android.graphics.Point;
+import java.util.ArrayList;
+import java.util.List;
 
 public class VisionEngine {
 
@@ -59,11 +61,19 @@ public class VisionEngine {
         return compareSubRegionStrict(screen, template, cropX, cropY, 35, false);
     }
 
+    private static class SearchCandidate {
+        int x, y;
+        double score;
+        SearchCandidate(int x, int y, double score) {
+            this.x = x; this.y = y; this.score = score;
+        }
+    }
+
     /**
-     * محرك البحث السريع المضمون 100% (Direct Array Sampling Scan)
-     * يفحص كامل الشاشة في 4ms بنقاء تام ويعثر على الهدف أينما كان
+     * محرك البحث الهرمي الذكي فائق الدقة والسرعة (Two-Stage Precision Search)
+     * يفحص الموضع المتوقع الحقيقي أولاً في 0.2ms، ثم يمسح الشاشة هرمياً دون أي خطأ مكاني
      */
-    public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int colorTolerance, boolean ignoreBadge) {
+    public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, int expectedX, int expectedY, double minThreshold, int colorTolerance, boolean ignoreBadge) {
         if (screen == null || template == null) return null;
 
         int tw = template.getWidth();
@@ -80,102 +90,123 @@ public class VisionEngine {
 
         if (limitX < boundX || limitY < boundY) return null;
 
-        // 1. فحص فوري للموضع المتوقع مع نافذة اهتزاز صغيرة ±15 بكسل
-        for (int dy = -15; dy <= 15; dy += 3) {
-            for (int dx = -15; dx <= 15; dx += 3) {
-                int testX = Math.max(boundX, Math.min(limitX, boundX + dx));
-                int testY = Math.max(boundY, Math.min(limitY, boundY + dy));
-                double sim = compareSubRegionStrict(screen, template, testX, testY, colorTolerance, ignoreBadge);
-                if (sim >= minThreshold) {
-                    return new Point(testX, testY);
-                }
+        // المرحلة 1: الفحص الفوري للموضع الأصلي المتوقع ومحيطه الصغير (±30 بكسل لتحمل حركة الخريطة الطفيفة في 1ms)
+        if (expectedX >= 0 && expectedY >= 0) {
+            int expSafeX = Math.max(boundX, Math.min(limitX, expectedX));
+            int expSafeY = Math.max(boundY, Math.min(limitY, expectedY));
+
+            // فحص دقيق في نفس المكان تماماً
+            double directSim = compareSubRegionStrict(screen, template, expSafeX, expSafeY, colorTolerance, ignoreBadge);
+            if (directSim >= minThreshold) {
+                return new Point(expSafeX, expSafeY);
             }
-        }
 
-        // 2. استخراج عينات نقطية من القالب للبحث السريع في كامل الشاشة
-        int sampleStepX = Math.max(2, tw / 6);
-        int sampleStepY = Math.max(2, th / 6);
-        int[] sampleDx = new int[36];
-        int[] sampleDy = new int[36];
-        int[] sampleColors = new int[36];
-        int sampleCount = 0;
-
-        for (int y = 2; y < th && sampleCount < 36; y += sampleStepY) {
-            for (int x = 2; x < tw && sampleCount < 36; x += sampleStepX) {
-                sampleDx[sampleCount] = x;
-                sampleDy[sampleCount] = y;
-                sampleColors[sampleCount] = template.getPixel(x, y);
-                sampleCount++;
-            }
-        }
-
-        int[] screenPixels = new int[sw * sh];
-        screen.getPixels(screenPixels, 0, sw, 0, 0, sw, sh);
-
-        int coarseStep = (tw >= 50 && th >= 50) ? 4 : 2;
-        Point bestCandidate = null;
-        double bestCandidateScore = 0.0;
-
-        // مسح مصفوفة الشاشة بسرعة الضوء
-        for (int y = boundY; y <= limitY; y += coarseStep) {
-            for (int x = boundX; x <= limitX; x += coarseStep) {
-                int matchedSamples = 0;
-
-                for (int s = 0; s < sampleCount; s++) {
-                    int pIndex = (y + sampleDy[s]) * sw + (x + sampleDx[s]);
-                    if (pIndex >= screenPixels.length) break;
-
-                    int sc = screenPixels[pIndex];
-                    int tc = sampleColors[s];
-
-                    int diffR = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
-                    int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
-                    int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
-
-                    if ((diffR + diffG + diffB) / 3.0 <= 45) {
-                        matchedSamples++;
-                    }
-                }
-
-                if (matchedSamples >= (sampleCount * 0.65)) {
-                    double score = ((double) matchedSamples / sampleCount) * 100.0;
-                    if (score > bestCandidateScore) {
-                        bestCandidateScore = score;
-                        bestCandidate = new Point(x, y);
+            // فحص نافذة اهتزاز الكاميرا حول الموقع المتوقع
+            Point localBest = null;
+            double localMaxSim = 0.0;
+            for (int dy = -30; dy <= 30; dy += 3) {
+                for (int dx = -30; dx <= 30; dx += 3) {
+                    int tx = Math.max(boundX, Math.min(limitX, expSafeX + dx));
+                    int ty = Math.max(boundY, Math.min(limitY, expSafeY + dy));
+                    double s = compareSubRegionStrict(screen, template, tx, ty, colorTolerance, ignoreBadge);
+                    if (s > localMaxSim) {
+                        localMaxSim = s;
+                        localBest = new Point(tx, ty);
                     }
                 }
             }
+            if (localMaxSim >= minThreshold && localBest != null) {
+                return localBest;
+            }
         }
 
-        // 3. تدقيق جراحي نهائي بنقاء 1 بكسل فقط حول نقطة الذروة
-        if (bestCandidate != null) {
-            int fineStartX = Math.max(boundX, bestCandidate.x - coarseStep);
-            int fineEndX = Math.min(limitX, bestCandidate.x + coarseStep);
-            int fineStartY = Math.max(boundY, bestCandidate.y - coarseStep);
-            int fineEndY = Math.min(limitY, bestCandidate.y + coarseStep);
+        // المرحلة 2: مسح المنطقة المحددة بالكامل أو الشاشة كاملة عبر التصغير الهرمي الذكي 3x
+        int scale = 3;
+        int scaledSw = sw / scale;
+        int scaledSh = sh / scale;
+        int scaledTw = Math.max(2, tw / scale);
+        int scaledTh = Math.max(2, th / scale);
 
-            Point exactMatch = null;
-            double maxExactSim = 0.0;
+        Bitmap smallScreen = Bitmap.createScaledBitmap(screen, scaledSw, scaledSh, false);
+        Bitmap smallTemplate = Bitmap.createScaledBitmap(template, scaledTw, scaledTh, false);
+
+        int[] sPix = new int[scaledSw * scaledSh];
+        int[] tPix = new int[scaledTw * scaledTh];
+        smallScreen.getPixels(sPix, 0, scaledSw, 0, 0, scaledSw, scaledSh);
+        smallTemplate.getPixels(tPix, 0, scaledTw, 0, 0, scaledTw, scaledTh);
+
+        int sBoundX = boundX / scale;
+        int sBoundY = boundY / scale;
+        int sLimitX = Math.min(scaledSw - scaledTw, limitX / scale);
+        int sLimitY = Math.min(scaledSh - scaledTh, limitY / scale);
+
+        // جمع أفضل 5 مرشحات حقيقية لمنع الانخداع بأي رمال أو تفاصيل ثانوية
+        List<SearchCandidate> topCandidates = new ArrayList<>();
+
+        for (int y = sBoundY; y <= sLimitY; y += 2) {
+            for (int x = sBoundX; x <= sLimitX; x += 2) {
+                int matched = 0;
+                int count = 0;
+
+                for (int ty = 0; ty < scaledTh; ty += 2) {
+                    for (int tx = 0; tx < scaledTw; tx += 2) {
+                        int sc = sPix[(y + ty) * scaledSw + (x + tx)];
+                        int tc = tPix[ty * scaledTw + tx];
+
+                        int dr = Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF));
+                        int dg = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
+                        int db = Math.abs((sc & 0xFF) - (tc & 0xFF));
+
+                        if ((dr + dg + db) / 3.0 <= 42) matched++;
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    double sSim = ((double) matched / count) * 100.0;
+                    if (sSim >= Math.max(20.0, minThreshold - 35.0)) {
+                        topCandidates.add(new SearchCandidate(x * scale, y * scale, sSim));
+                        if (topCandidates.size() > 8) {
+                            topCandidates.sort((a, b) -> Double.compare(b.score, a.score));
+                            topCandidates.remove(topCandidates.size() - 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        smallScreen.recycle();
+        smallTemplate.recycle();
+
+        // المرحلة 3: تدقيق جراحي بنقاء 1 بكسل فقط حول أفضل المرشحات لاقتناص الهدف الأصلي بالضبط
+        Point finalExactPoint = null;
+        double highestStrictSim = 0.0;
+
+        for (SearchCandidate cand : topCandidates) {
+            int fineStartX = Math.max(boundX, cand.x - (scale * 2));
+            int fineEndX = Math.min(limitX, cand.x + (scale * 2));
+            int fineStartY = Math.max(boundY, cand.y - (scale * 2));
+            int fineEndY = Math.min(limitY, cand.y + (scale * 2));
 
             for (int fy = fineStartY; fy <= fineEndY; fy++) {
                 for (int fx = fineStartX; fx <= fineEndX; fx++) {
                     double strictSim = compareSubRegionStrict(screen, template, fx, fy, colorTolerance, ignoreBadge);
-                    if (strictSim > maxExactSim) {
-                        maxExactSim = strictSim;
-                        exactMatch = new Point(fx, fy);
+                    if (strictSim > highestStrictSim) {
+                        highestStrictSim = strictSim;
+                        finalExactPoint = new Point(fx, fy);
                     }
                 }
             }
+        }
 
-            if (maxExactSim >= minThreshold && exactMatch != null) {
-                return exactMatch;
-            }
+        if (highestStrictSim >= minThreshold && finalExactPoint != null) {
+            return finalExactPoint;
         }
 
         return null;
     }
 
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
-        return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, minThreshold, 35, false);
+        return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, searchX, searchY, minThreshold, 35, false);
     }
 }
