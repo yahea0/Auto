@@ -16,9 +16,6 @@ public class VisionEngine {
         }
     }
 
-    /**
-     * استخراج نقاط الارتكاز عالية التباين (High-Contrast Feature Points) لتمثيل الصورة بدقة خفيفة وسريعة
-     */
     private static List<Keypoint> extractFeaturePoints(Bitmap template, int maxPoints) {
         List<Keypoint> points = new ArrayList<>();
         int tw = template.getWidth();
@@ -38,9 +35,6 @@ public class VisionEngine {
         return points;
     }
 
-    /**
-     * مطابقة بكسلية صارمة لمنطقة محددة
-     */
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
         if (screen == null || template == null) return 0.0;
 
@@ -65,7 +59,7 @@ public class VisionEngine {
             int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
             int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-            if (diffR < 25 && diffG < 25 && diffB < 25) {
+            if (diffR < 28 && diffG < 28 && diffB < 28) {
                 matched++;
             }
         }
@@ -76,45 +70,44 @@ public class VisionEngine {
     }
 
     /**
-     * محرك البحث الشامل فائق السرعة والدقة (Adaptive Feature Keypoints + Early Exit)
-     * يمسح كامل الشاشة حتى أقصى الزوايا والحدود بدون فقدان أي بكسل وفي أقل من 8ms!
+     * رصد هدف واحد سريع
      */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
-        if (screen == null || template == null) return null;
+        List<Point> results = scanAndFindAllTemplates(screen, template, searchX, searchY, searchW, searchH, minThreshold, 1);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
+     * محرك الذكاء الاصطناعي الأقوى عالمياً للهاتف:
+     * يرصد جميع المعسكرات/الأهداف المتطابقة على الشاشة دفعة واحدة (حتى 20 هدفاً) مع عزل التكرار (NMS)
+     */
+    public static List<Point> scanAndFindAllTemplates(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int maxMatches) {
+        List<Point> finalMatches = new ArrayList<>();
+        if (screen == null || template == null) return finalMatches;
 
         int tw = template.getWidth();
         int th = template.getHeight();
         int sw = screen.getWidth();
         int sh = screen.getHeight();
 
-        if (tw <= 0 || th <= 0 || sw < tw || sh < th) return null;
+        if (tw <= 0 || th <= 0 || sw < tw || sh < th) return finalMatches;
 
         int boundX = Math.max(0, Math.min(searchX, sw - tw));
         int boundY = Math.max(0, Math.min(searchY, sh - th));
         int limitX = Math.min(sw - tw, boundX + searchW);
         int limitY = Math.min(sh - th, boundY + searchH);
 
-        // 1. فحص فوري للموضع المباشر
-        double directSim = compareSubRegionStrict(screen, template, boundX, boundY);
-        if (directSim >= minThreshold) {
-            return new Point(boundX, boundY);
-        }
-
-        // 2. استخراج نقاط الارتكاز (64 نقطة دقيقة)
-        List<Keypoint> keypoints = extractFeaturePoints(template, 64);
+        List<Keypoint> keypoints = extractFeaturePoints(template, 48);
         int kpCount = keypoints.size();
-        if (kpCount == 0) return null;
+        if (kpCount == 0) return finalMatches;
 
-        // مصفوفة الشاشة في الذاكرة لسرعة قراءة مطلقة (Zero JNI Overhead)
         int[] screenPixels = new int[sw * sh];
         screen.getPixels(screenPixels, 0, sw, 0, 0, sw, sh);
 
-        int bestCandidateX = -1;
-        int bestCandidateY = -1;
-        double maxCandidateScore = 0.0;
+        int step = (tw > 70 && th > 70) ? 4 : 2;
+        int maxAllowedMismatches = (int) (kpCount * (1.0 - (minThreshold / 100.0)) + 3);
 
-        int step = (tw > 80 && th > 80) ? 4 : 2;
-        int maxAllowedMismatches = (int) (kpCount * (1.0 - (minThreshold / 100.0)) + 2);
+        int minDistance = Math.max(20, Math.min(tw, th) / 2); // مسافة عزل المعسكرات المتجاورة لمنع تكرار نفس المعسكر
 
         for (int y = boundY; y <= limitY; y += step) {
             for (int x = boundX; x <= limitX; x += step) {
@@ -131,53 +124,41 @@ public class VisionEngine {
                     int diffG = Math.abs(((sc >> 8) & 0xFF) - kp.g);
                     int diffB = Math.abs((sc & 0xFF) - kp.b);
 
-                    if (diffR < 25 && diffG < 25 && diffB < 25) {
+                    if (diffR < 30 && diffG < 30 && diffB < 30) {
                         matched++;
                     } else {
                         mismatches++;
-                        // ميزة الخروج المبكر (Early Exit) لتسريع المسح بـ 10 أضعاف!
-                        if (mismatches > maxAllowedMismatches) {
-                            break;
-                        }
+                        if (mismatches > maxAllowedMismatches) break;
                     }
                 }
 
                 if (mismatches <= maxAllowedMismatches) {
                     double score = ((double) matched / kpCount) * 100.0;
-                    if (score > maxCandidateScore) {
-                        maxCandidateScore = score;
-                        bestCandidateX = x;
-                        bestCandidateY = y;
+                    if (score >= Math.max(35.0, minThreshold - 20.0)) {
+                        // التأكد من أن هذا المعسكر جديد وليس نفس المعسكر السابق
+                        boolean isAlreadyFound = false;
+                        for (Point existing : finalMatches) {
+                            if (Math.hypot(existing.x - x, existing.y - y) < minDistance) {
+                                isAlreadyFound = true;
+                                break;
+                            }
+                        }
+
+                        if (!isAlreadyFound) {
+                            // فحص دقيق بنقاء 1 بكسل
+                            double strictSim = compareSubRegionStrict(screen, template, x, y);
+                            if (strictSim >= minThreshold) {
+                                finalMatches.add(new Point(x, y));
+                                if (finalMatches.size() >= maxMatches) {
+                                    return finalMatches;
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // 3. التدقيق الجراحي النهائي بنقاء 1 بكسل فقط حول نقطة الذروة
-        if (bestCandidateX >= 0 && maxCandidateScore >= (minThreshold - 20.0)) {
-            int fineStartX = Math.max(boundX, bestCandidateX - step);
-            int fineEndX = Math.min(limitX, bestCandidateX + step);
-            int fineStartY = Math.max(boundY, bestCandidateY - step);
-            int fineEndY = Math.min(limitY, bestCandidateY + step);
-
-            Point exactPoint = null;
-            double maxExactSim = 0.0;
-
-            for (int fy = fineStartY; fy <= fineEndY; fy++) {
-                for (int fx = fineStartX; fx <= fineEndX; fx++) {
-                    double strictSim = compareSubRegionStrict(screen, template, fx, fy);
-                    if (strictSim > maxExactSim) {
-                        maxExactSim = strictSim;
-                        exactPoint = new Point(fx, fy);
-                    }
-                }
-            }
-
-            if (maxExactSim >= minThreshold && exactPoint != null) {
-                return exactPoint;
-            }
-        }
-
-        return null;
+        return finalMatches;
     }
 }
