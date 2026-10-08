@@ -65,10 +65,12 @@ public class FloatingWindowService extends Service {
     private BroadcastReceiver clickImageReceiver;
     private BroadcastReceiver customRegionReceiver;
     private BroadcastReceiver alternateTemplateReceiver;
+    private BroadcastReceiver anchorReceiver;
 
     private static Action inAppClipboardAction = null;
     private Action currentEditingRegionAction = null;
     private Action currentTargetForAlternateTemplate = null;
+    private TemplateItem currentTargetTemplateForAnchor = null;
 
     @Nullable
     @Override
@@ -211,12 +213,33 @@ public class FloatingWindowService extends Service {
                         currentTargetForAlternateTemplate.addTemplateItem(newItem);
                         updateHudActionCards();
                         openHudBar();
-                        Toast.makeText(FloatingWindowService.this, "تمت إضافة قالب تدريب جديد للهدف بنجاح!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(FloatingWindowService.this, "تم تدريب نموذج جديد للهدف بنجاح!", Toast.LENGTH_SHORT).show();
                     }
                 }
             }
         };
         ContextCompat.registerReceiver(this, alternateTemplateReceiver, new IntentFilter("ALTERNATE_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
+
+        // استقبال لقطة العلامة المميزة المرجعية Landmark Anchor
+        anchorReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (currentTargetTemplateForAnchor != null) {
+                    String anchorPath = intent.getStringExtra("anchor_path");
+                    int relX = intent.getIntExtra("rel_x", 0);
+                    int relY = intent.getIntExtra("rel_y", 0);
+
+                    currentTargetTemplateForAnchor.setHasAnchor(true);
+                    currentTargetTemplateForAnchor.setAnchorImagePath(anchorPath);
+                    currentTargetTemplateForAnchor.setAnchorRelativeX(relX);
+                    currentTargetTemplateForAnchor.setAnchorRelativeY(relY);
+
+                    openHudBar();
+                    Toast.makeText(FloatingWindowService.this, "تم قفل العلامة المميزة المرجعية بنجاح!", Toast.LENGTH_LONG).show();
+                }
+            }
+        };
+        ContextCompat.registerReceiver(this, anchorReceiver, new IntentFilter("ANCHOR_TEMPLATE_CROPPED"), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void safeInitViews() {
@@ -813,7 +836,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * نافذة مدير القوالب المتعددة: قائمة قابلة للتمرير مع زر حذف أحمر مستقل 🗑️ لكل كرت
+     * نافذة مدير القوالب المتعددة مع زر حذف مستقل 🗑️
      */
     private void showTemplateManagerDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
@@ -852,13 +875,11 @@ public class FloatingWindowService extends Service {
             }
             tvName.setText((itemIndex == 0 ? "★ Primary: " : "Alt " + itemIndex + ": ") + item.getName());
 
-            // فتح إعدادات القالب والتنعيم بالبكسل
             card.setOnClickListener(v -> {
                 dialog.dismiss();
                 showIndividualTemplateSettingsDialog(action, item);
             });
 
-            // زر حذف هذا القالب المستقل 🗑️
             if (btnDelete != null) {
                 btnDelete.setOnClickListener(v -> {
                     if (pool.size() <= 1) {
@@ -868,7 +889,7 @@ public class FloatingWindowService extends Service {
                     pool.remove(itemIndex);
                     updateHudActionCards();
                     dialog.dismiss();
-                    showTemplateManagerDialog(action); // إعادة تحديث القائمة
+                    showTemplateManagerDialog(action);
                     Toast.makeText(this, "تم حذف القالب بنجاح!", Toast.LENGTH_SHORT).show();
                 });
             }
@@ -890,7 +911,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * نافذة إعدادات القالب الواحد: المعاينة الحية المباشرة Live Preview وأزرار تنعيم البكسل (+/- 1px) وعزل الشارات
+     * نافذة إعدادات القالب: تعديل الاسم المخصص، التعديل المباشر للبكسل (+/-) القابل للتراجع، وقفل العلامة المميزة المرجعية
      */
     private void showIndividualTemplateSettingsDialog(Action action, TemplateItem item) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
@@ -904,18 +925,21 @@ public class FloatingWindowService extends Service {
             dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
         }
 
-        TextView tvTitle = dialogView.findViewById(R.id.tvTemplateSettingsTitle);
-        tvTitle.setText("Settings: " + item.getName());
+        // تعديل اسم النموذج المخصص
+        EditText etCustomName = dialogView.findViewById(R.id.etTemplateCustomName);
+        etCustomName.setText(item.getName());
 
         ImageView ivLivePreview = dialogView.findViewById(R.id.ivSettingsTemplatePreview);
         TextView tvLiveDim = dialogView.findViewById(R.id.tvLiveTrimDimensions);
 
-        // تحميل الصورة الأصلية للمعاينة الحية المباشرة
+        // تحميل صورة الماستر الأصلية للتعديل القابل للعكس والتراجع التام
         final File templateFile = new File(item.getImagePath());
-        final Bitmap[] currentBmp = {BitmapFactory.decodeFile(templateFile.getAbsolutePath())};
-        if (currentBmp[0] != null) {
-            ivLivePreview.setImageBitmap(currentBmp[0]);
-            tvLiveDim.setText("[" + currentBmp[0].getWidth() + " x " + currentBmp[0].getHeight() + " px]");
+        final Bitmap masterBmp = BitmapFactory.decodeFile(templateFile.getAbsolutePath());
+        final int[] trimOffsets = {0, 0}; // deltaW, deltaH
+
+        if (masterBmp != null) {
+            ivLivePreview.setImageBitmap(masterBmp);
+            tvLiveDim.setText("[" + masterBmp.getWidth() + " x " + masterBmp.getHeight() + " px]");
         }
 
         EditText etSim = dialogView.findViewById(R.id.etTemplateSim);
@@ -927,21 +951,53 @@ public class FloatingWindowService extends Service {
         Switch swLevel = dialogView.findViewById(R.id.swIgnoreLevelBadge);
         swLevel.setChecked(item.isIgnoreLevelBadge());
 
-        // أزرار تعديل الحجم بالبكسل المباشرة (+/- 1px) مع رؤية التأثير فوراً بالعين
-        dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> 
-            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, -1, 0)
-        );
-        dialogView.findViewById(R.id.btnTrimWPlus).setOnClickListener(v -> 
-            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 1, 0)
-        );
-        dialogView.findViewById(R.id.btnTrimHMinus).setOnClickListener(v -> 
-            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 0, -1)
-        );
-        dialogView.findViewById(R.id.btnTrimHPlus).setOnClickListener(v -> 
-            currentBmp[0] = applyLivePixelTrim(currentBmp[0], ivLivePreview, tvLiveDim, 0, 1)
-        );
+        // نظام العلامة المميزة المرجعية Landmark Anchor
+        Switch swAnchor = dialogView.findViewById(R.id.swEnableAnchor);
+        swAnchor.setChecked(item.hasAnchor());
+
+        Button btnCaptureAnchor = dialogView.findViewById(R.id.btnCaptureLandmarkAnchor);
+        btnCaptureAnchor.setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            currentTargetTemplateForAnchor = item;
+            Intent intent = new Intent(this, ImageCropPickerService.class);
+            intent.putExtra("is_anchor_capture", true);
+            intent.putExtra("parent_x", action.getX());
+            intent.putExtra("parent_y", action.getY());
+            startService(intent);
+        });
+
+        // زر إعادة فتح المستطيل المطاطي لتأطير الصورة يدوياً
+        dialogView.findViewById(R.id.btnReCropRubberFrame).setOnClickListener(v -> {
+            dialog.dismiss();
+            closeHudBar();
+            Intent intent = new Intent(this, ImageCropPickerService.class);
+            intent.putExtra("is_click_image", "Click Image".equals(action.getType()));
+            startService(intent);
+        });
+
+        // أزرار تعديل البكسل (+/- 1px) القابلة للتراجع المباشر
+        dialogView.findViewById(R.id.btnTrimWMinus).setOnClickListener(v -> {
+            trimOffsets[0] = Math.max(-masterBmp.getWidth() + 15, trimOffsets[0] - 1);
+            updateTrimLivePreview(masterBmp, trimOffsets[0], trimOffsets[1], ivLivePreview, tvLiveDim);
+        });
+        dialogView.findViewById(R.id.btnTrimWPlus).setOnClickListener(v -> {
+            trimOffsets[0] = Math.min(0, trimOffsets[0] + 1);
+            updateTrimLivePreview(masterBmp, trimOffsets[0], trimOffsets[1], ivLivePreview, tvLiveDim);
+        });
+        dialogView.findViewById(R.id.btnTrimHMinus).setOnClickListener(v -> {
+            trimOffsets[1] = Math.max(-masterBmp.getHeight() + 15, trimOffsets[1] - 1);
+            updateTrimLivePreview(masterBmp, trimOffsets[0], trimOffsets[1], ivLivePreview, tvLiveDim);
+        });
+        dialogView.findViewById(R.id.btnTrimHPlus).setOnClickListener(v -> {
+            trimOffsets[1] = Math.min(0, trimOffsets[1] + 1);
+            updateTrimLivePreview(masterBmp, trimOffsets[0], trimOffsets[1], ivLivePreview, tvLiveDim);
+        });
 
         dialogView.findViewById(R.id.btnSaveTemplateSettings).setOnClickListener(v -> {
+            String newName = etCustomName.getText().toString().trim();
+            if (!newName.isEmpty()) item.setName(newName);
+
             String sVal = etSim.getText().toString();
             String tVal = etTol.getText().toString();
             int sim = sVal.isEmpty() ? 70 : Integer.parseInt(sVal);
@@ -950,15 +1006,17 @@ public class FloatingWindowService extends Service {
             item.setSimilarity(Math.max(1, Math.min(100, sim)));
             item.setColorTolerance(Math.max(10, Math.min(80, tol)));
             item.setIgnoreLevelBadge(swLevel.isChecked());
+            item.setHasAnchor(swAnchor.isChecked());
 
-            // حفظ الصورة المعدلة بالبكسل في الذاكرة
-            if (currentBmp[0] != null) {
+            // حفظ الصورة بعد التعديل البكسلي بدقة
+            if (masterBmp != null && (trimOffsets[0] != 0 || trimOffsets[1] != 0)) {
                 try {
+                    int finalW = masterBmp.getWidth() + trimOffsets[0];
+                    int finalH = masterBmp.getHeight() + trimOffsets[1];
+                    Bitmap finalTrimmed = Bitmap.createBitmap(masterBmp, 0, 0, finalW, finalH);
                     FileOutputStream fos = new FileOutputStream(templateFile);
-                    currentBmp[0].compress(Bitmap.CompressFormat.PNG, 100, fos);
+                    finalTrimmed.compress(Bitmap.CompressFormat.PNG, 100, fos);
                     fos.close();
-                    item.setWidth(currentBmp[0].getWidth());
-                    item.setHeight(currentBmp[0].getHeight());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -966,21 +1024,19 @@ public class FloatingWindowService extends Service {
 
             updateHudActionCards();
             dialog.dismiss();
-            Toast.makeText(this, "تم حفظ الإعدادات وقص البكسل بنجاح!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم حفظ الإعدادات وقفل العلامة بنجاح!", Toast.LENGTH_SHORT).show();
         });
 
         dialog.show();
     }
 
-    private Bitmap applyLivePixelTrim(Bitmap bmp, ImageView ivPreview, TextView tvDim, int dw, int dh) {
-        if (bmp == null) return null;
-        int newW = Math.max(10, bmp.getWidth() + dw);
-        int newH = Math.max(10, bmp.getHeight() + dh);
-
-        Bitmap trimmed = Bitmap.createBitmap(bmp, 0, 0, Math.min(newW, bmp.getWidth()), Math.min(newH, bmp.getHeight()));
-        ivPreview.setImageBitmap(trimmed);
-        tvDim.setText("[" + trimmed.getWidth() + " x " + trimmed.getHeight() + " px]");
-        return trimmed;
+    private void updateTrimLivePreview(Bitmap master, int dw, int dh, ImageView iv, TextView tvDim) {
+        if (master == null) return;
+        int nw = Math.max(15, master.getWidth() + dw);
+        int nh = Math.max(15, master.getHeight() + dh);
+        Bitmap preview = Bitmap.createBitmap(master, 0, 0, nw, nh);
+        iv.setImageBitmap(preview);
+        tvDim.setText("[" + nw + " x " + nh + " px]");
     }
 
     private double calculateActionSimilarity(Bitmap screen, Bitmap template, Action action) {
@@ -1002,7 +1058,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * رصد الهدف مع خوارزمية القفل المكاني لمنع القفز لأهداف أخرى مشابهة والنقر في المركز بالضبط
+     * رصد الهدف الحقيقي مع القفل المكاني ومطابقة العلامة المميزة المرجعية الإلزامية لمنع القفز لأهداف أخرى
      */
     private Point findMatchCenterForAction(Bitmap screen, Action action) {
         if (screen == null) return null;
@@ -1020,15 +1076,25 @@ public class FloatingWindowService extends Service {
             int tolerance = item.getColorTolerance();
             boolean ignoreBadge = item.isIgnoreLevelBadge();
 
+            // فحص العلامة المميزة المرجعية
+            boolean hasAnchor = item.hasAnchor();
+            Bitmap anchorBmp = hasAnchor && item.getAnchorImagePath() != null ? BitmapFactory.decodeFile(item.getAnchorImagePath()) : null;
+            int relAnchorX = item.getAnchorRelativeX();
+            int relAnchorY = item.getAnchorRelativeY();
+            int anchorTol = item.getAnchorTolerance();
+            double anchorThresh = item.getAnchorSimilarity();
+
             Point found = null;
             if ("FULL_SCREEN".equals(mode)) {
-                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge);
+                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, anchorBmp, 0, 0, screen.getWidth(), screen.getHeight(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge, hasAnchor, relAnchorX, relAnchorY, anchorTol, anchorThresh);
             } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge);
+                found = VisionEngine.scanAndFindTemplateWithSpatialLock(screen, tBmp, anchorBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), action.getCropX(), action.getCropY(), minThresh, tolerance, ignoreBadge, hasAnchor, relAnchorX, relAnchorY, anchorTol, anchorThresh);
             } else {
                 double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
                 if (sim >= minThresh) {
-                    found = new Point(action.getCropX(), action.getCropY());
+                    if (!hasAnchor || VisionEngine.verifyAnchorAtRelativeOffset(screen, anchorBmp, action.getCropX(), action.getCropY(), relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
+                        found = new Point(action.getCropX(), action.getCropY());
+                    }
                 }
             }
 
@@ -1115,7 +1181,7 @@ public class FloatingWindowService extends Service {
 
     private void showExistingImagesPicker(@Nullable Action actionToEdit, boolean isEditingExisting) {
         File filesDir = getFilesDir();
-        File[] files = filesDir.listFiles((dir, name) -> name.startsWith("img_") && name.endsWith(".png"));
+        File[] files = filesDir.listFiles((dir, name) -> (name.startsWith("img_") || name.startsWith("anchor_")) && name.endsWith(".png"));
 
         if (files == null || files.length == 0) {
             Toast.makeText(this, "لا توجد صور محفوظة مسبقاً، اختر New لقص صورة جديدة", Toast.LENGTH_LONG).show();
@@ -1493,7 +1559,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو المستمر: يبحث بدقة جراحية ويقفل مكانياً على الهدف المطلوب دون الانخداع بأي عنصر آخر
+     * تشغيل الماكرو المستمر: ينفذ النقر مع فحص العلامة المميزة المرجعية الإلزامية في لعبة الفاتحون
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
@@ -1549,8 +1615,8 @@ public class FloatingWindowService extends Service {
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (screen != null) {
                                     Point targetCenter = findMatchCenterForAction(screen, action);
-                                    boolean detected = (targetCenter != null);
-                                    conditionMet = action.isNotAppear() ? !detected : detected;
+                                    conditionMet = (targetCenter != null);
+                                    if (action.isNotAppear()) conditionMet = !conditionMet;
                                 }
                                 if (!conditionMet) continue;
                             }
@@ -1639,6 +1705,7 @@ public class FloatingWindowService extends Service {
         if (clickImageReceiver != null) try { unregisterReceiver(clickImageReceiver); } catch (Exception ignored) {}
         if (customRegionReceiver != null) try { unregisterReceiver(customRegionReceiver); } catch (Exception ignored) {}
         if (alternateTemplateReceiver != null) try { unregisterReceiver(alternateTemplateReceiver); } catch (Exception ignored) {}
+        if (anchorReceiver != null) try { unregisterReceiver(anchorReceiver); } catch (Exception ignored) {}
         if (floatingView != null && windowManager != null) try { windowManager.removeView(floatingView); } catch (Exception ignored) {}
         if (popupMenuView != null && windowManager != null) try { windowManager.removeView(popupMenuView); } catch (Exception ignored) {}
         if (hudBarView != null && windowManager != null) try { windowManager.removeView(hudBarView); } catch (Exception ignored) {}
