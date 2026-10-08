@@ -2,10 +2,12 @@ package com.example.myautomationapp;
 
 import android.graphics.Bitmap;
 import android.graphics.Point;
+import java.io.File;
 
 /**
- * محرك البحث والتحقق (Macrorify OpenCV TM_CCOEFF_NORMED Engine)
- * ينفذ معادلة الارتباط المقنن القياسية مع حارس التباين والمسح الهرمي فائق السرعة.
+ * محرك البحث والتحقق الصارم فائق الدقة (Macrorify-Grade Strict Vision Engine)
+ * يعتمد على مطابقة مصفوفة التردد العالي للنصوص (High-Frequency Text & Edge Bottleneck)
+ * مع ارتباط الألوان ثلاثي القنوات (Multi-Channel ZNCC) وحماية الإحداثيات المحددة.
  */
 public class VisionEngine {
 
@@ -24,30 +26,39 @@ public class VisionEngine {
         if ("CAPTURED".equalsIgnoreCase(mode)) {
             expX = action.getCropX();
             expY = action.getCropY();
-            searchX = Math.max(0, expX - 35);
-            searchY = Math.max(0, expY - 35);
-            searchW = action.getCropW() + 70;
-            searchH = action.getCropH() + 70;
+            searchX = Math.max(0, expX - 25);
+            searchY = Math.max(0, expY - 25);
+            searchW = action.getCropW() + 50;
+            searchH = action.getCropH() + 50;
         } else if ("CUSTOM".equalsIgnoreCase(mode)) {
             searchX = action.getCustomRegionX();
             searchY = action.getCustomRegionY();
             searchW = action.getCustomRegionW();
             searchH = action.getCustomRegionH();
         } else {
-            // Full Screen
             searchX = 0;
             searchY = 0;
             searchW = sw;
             searchH = sh;
         }
 
+        // استخراج النسبة والتسامح الحقيقي من القالب أو الأكشن مع التزامن التام
         double threshold = action.getSimilarity() > 0 ? action.getSimilarity() : 70.0;
-        return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, 30, false);
+        int colorTolerance = 30;
+        boolean ignoreBadge = false;
+
+        if (!action.getTemplatePool().isEmpty()) {
+            TemplateItem primary = action.getTemplatePool().get(0);
+            if (primary.getSimilarity() > 0) {
+                threshold = primary.getSimilarity();
+            }
+            colorTolerance = primary.getColorTolerance();
+            ignoreBadge = primary.isIgnoreLevelBadge();
+        }
+
+        return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, colorTolerance, ignoreBadge);
     }
 
-    /**
-     * المسح والتطابق عبر معادلة Macrorify القياسية
-     */
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template,
                                            int searchX, int searchY, int searchW, int searchH,
                                            int expectedX, int expectedY,
@@ -69,7 +80,7 @@ public class VisionEngine {
 
         if (limitW < tw || limitH < effectiveTh) return null;
 
-        // 1. الفحص الفوري لوضع Captured Location (< 1ms)
+        // 1. الفحص الصارم لوضع Captured Location
         if (expectedX >= 0 && expectedY >= 0) {
             int testX = Math.max(boundX, Math.min(sw - tw, expectedX));
             int testY = Math.max(boundY, Math.min(sh - effectiveTh, expectedY));
@@ -79,10 +90,11 @@ public class VisionEngine {
                 return new Point(testX, testY);
             }
 
+            // فحص موضعي طفيف (±15 بكسل) لمراعاة اهتزاز الرسم الطبيعي للشاشة
             Point localBest = null;
             double localMax = 0.0;
-            for (int dy = -20; dy <= 20; dy += 4) {
-                for (int dx = -20; dx <= 20; dx += 4) {
+            for (int dy = -16; dy <= 16; dy += 2) {
+                for (int dx = -16; dx <= 16; dx += 2) {
                     int curX = testX + dx;
                     int curY = testY + dy;
                     if (curX >= boundX && curX + tw <= sw && curY >= boundY && curY + effectiveTh <= sh) {
@@ -94,14 +106,17 @@ public class VisionEngine {
                     }
                 }
             }
+
             if (localMax >= minThreshold && localBest != null) {
                 return localBest;
             }
+
+            // حظر قاطع: وضع CAPTURED مخصص لمكان محدد، فإذا لم تتطابق الصورة مكانه لا يتم البحث عشوائياً في الشاشة
+            return null;
         }
 
-        // 2. الهرم متعدد المقاييس (Pyramid TM_CCOEFF_NORMED) لوضعي Full Screen و Custom Region
+        // 2. الهرم متعدد المقاييس (Pyramid ZNCC) لوضعي Full Screen و Custom Region
         int scale = (limitW > 400 && limitH > 400) ? 4 : 2;
-
         int pyrSw = limitW / scale;
         int pyrSh = limitH / scale;
         int pyrTw = Math.max(2, tw / scale);
@@ -109,7 +124,6 @@ public class VisionEngine {
 
         if (pyrSw < pyrTw || pyrSh < pyrTh) return null;
 
-        // استخراج مصفوفة التدرج الرمادي للقالب مع طرح المتوسط (Zero-Mean Template)
         float[] tplLuma = new float[pyrTw * pyrTh];
         float tplSum = 0;
         int[] tplColors = new int[tw * effectiveTh];
@@ -133,7 +147,6 @@ public class VisionEngine {
 
         if (tplVar < 10.0f) tplVar = 10.0f;
 
-        // مصفوفة الشاشة الرمادية لمنطقة البحث (ROI)
         int[] screenRoi = new int[limitW * limitH];
         screen.getPixels(screenRoi, 0, limitW, boundX, boundY, limitW, limitH);
 
@@ -171,10 +184,8 @@ public class VisionEngine {
                     }
                 }
 
-                // حارس التباين: إسقاط الخلفيات الملساء والفارغة فوراً
                 if (patchVar < 25.0f || cross <= 0) continue;
 
-                // معادلة OpenCV TM_CCOEFF_NORMED
                 float corr = cross / (float) (Math.sqrt(patchVar * tplVar) + 1e-4);
                 if (corr > bestCorr) {
                     bestCorr = corr;
@@ -184,11 +195,11 @@ public class VisionEngine {
             }
         }
 
-        if (bestCorr < 0.38f || candX < 0) {
+        if (bestCorr < 0.45f || candX < 0) {
             return null;
         }
 
-        // 3. التدقيق الجراحي الأصلي في المستوى 0 بدقة 1 بكسل
+        // 3. التدقيق الجراحي الأصلي بدقة 1 بكسل
         int fineStartX = Math.max(boundX, boundX + candX - (scale * 2));
         int fineEndX = Math.min(boundX + limitW - tw, boundX + candX + (scale * 2));
         int fineStartY = Math.max(boundY, boundY + candY - (scale * 2));
@@ -215,7 +226,7 @@ public class VisionEngine {
     }
 
     /**
-     * حساب نسبة التطابق بمعادلة TM_CCOEFF_NORMED مع فحص تطابق القنوات اللونية
+     * حساب نسبة التطابق الدقيقة الصارمة بالملي (Zero-Tolerance Text & Color Matcher)
      */
     public static double matchTemplateScore(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
         if (screen == null || template == null || screen.isRecycled() || template.isRecycled()) return 0.0;
@@ -236,64 +247,123 @@ public class VisionEngine {
         screen.getPixels(screenPixels, 0, tw, safeX, safeY, tw, effectiveHeight);
         template.getPixels(templatePixels, 0, tw, 0, 0, tw, effectiveHeight);
 
-        int tolRGB = Math.max(15, Math.min(50, colorTolerance));
+        // 1. حساب المتوسطات لقنوات الألوان (RGB) والإضاءة (Luma)
+        double rSumS = 0, gSumS = 0, bSumS = 0, lumSumS = 0;
+        double rSumT = 0, gSumT = 0, bSumT = 0, lumSumT = 0;
 
-        int matchedColorPixels = 0;
-        int step = (total > 20000) ? 2 : 1;
-        int samples = 0;
+        float[] sLum = new float[total];
+        float[] tLum = new float[total];
 
-        float pSum = 0, tSum = 0;
-
-        for (int i = 0; i < total; i += step) {
+        for (int i = 0; i < total; i++) {
             int sc = screenPixels[i];
             int tc = templatePixels[i];
 
             int sr = (sc >> 16) & 0xFF, sg = (sc >> 8) & 0xFF, sb = sc & 0xFF;
             int tr = (tc >> 16) & 0xFF, tg = (tc >> 8) & 0xFF, tb = tc & 0xFF;
 
-            if (Math.abs(sr - tr) <= tolRGB && Math.abs(sg - tg) <= tolRGB && Math.abs(sb - tb) <= tolRGB) {
-                matchedColorPixels++;
-            }
+            float sl = (sr * 77f + sg * 151f + sb * 28f) / 256f;
+            float tl = (tr * 77f + tg * 151f + tb * 28f) / 256f;
 
-            pSum += (sr * 77 + sg * 151 + sb * 28) >> 8;
-            tSum += (tr * 77 + tg * 151 + tb * 28) >> 8;
-            samples++;
+            sLum[i] = sl;
+            tLum[i] = tl;
+
+            rSumS += sr; gSumS += sg; bSumS += sb; lumSumS += sl;
+            rSumT += tr; gSumT += tg; bSumT += tb; lumSumT += tl;
         }
 
-        if (samples == 0) return 0.0;
+        double invN = 1.0 / total;
+        double rMeanS = rSumS * invN, gMeanS = gSumS * invN, bMeanS = bSumS * invN;
+        double rMeanT = rSumT * invN, gMeanT = gSumT * invN, bMeanT = bSumT * invN;
+        double lumMeanS = lumSumS * invN, lumMeanT = lumSumT * invN;
 
-        float pMean = pSum / samples;
-        float tMean = tSum / samples;
+        // 2. تباين الألوان ثلاثي القنوات والارتباط المتبادل
+        double varS = 0, varT = 0, crossColor = 0;
+        double absErrSum = 0;
 
-        float pVar = 0, tVar = 0, cross = 0;
-        for (int i = 0; i < total; i += step) {
+        for (int i = 0; i < total; i++) {
             int sc = screenPixels[i];
             int tc = templatePixels[i];
 
-            float pLum = (((sc >> 16) & 0xFF) * 77 + ((sc >> 8) & 0xFF) * 151 + (sc & 0xFF) * 28) >> 8;
-            float tLum = (((tc >> 16) & 0xFF) * 77 + ((tc >> 8) & 0xFF) * 151 + (tc & 0xFF) * 28) >> 8;
+            double drS = ((sc >> 16) & 0xFF) - rMeanS;
+            double dgS = ((sc >> 8) & 0xFF) - gMeanS;
+            double dbS = (sc & 0xFF) - bMeanS;
 
-            float pDiff = pLum - pMean;
-            float tDiff = tLum - tMean;
+            double drT = ((tc >> 16) & 0xFF) - rMeanT;
+            double dgT = ((tc >> 8) & 0xFF) - gMeanT;
+            double dbT = (tc & 0xFF) - bMeanT;
 
-            pVar += pDiff * pDiff;
-            tVar += tDiff * tDiff;
-            cross += pDiff * tDiff;
+            varS += drS * drS + dgS * dgS + dbS * dbS;
+            varT += drT * drT + dgT * dgT + dbT * dbT;
+            crossColor += drS * drT + dgS * dgT + dbS * dbT;
+
+            absErrSum += Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF))
+                       + Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF))
+                       + Math.abs((sc & 0xFF) - (tc & 0xFF));
         }
 
-        if (tVar > 80.0f && pVar < 25.0f) {
-            return 5.0;
+        double corrColor = 0.0;
+        if (varS > 10.0 && varT > 10.0) {
+            corrColor = Math.max(0.0, crossColor / (Math.sqrt(varS * varT) + 1e-4));
         }
 
-        double colorRatio = ((double) matchedColorPixels / samples);
-        double corr = 0.0;
-        if (pVar > 10.0f && tVar > 10.0f) {
-            corr = Math.max(0.0, cross / (Math.sqrt(pVar * tVar) + 1e-4));
+        // 3. فحص التردد العالي لحواف وتفاصيل النص (Text/Edge Strict Bottleneck)
+        double detCross = 0, detVarS = 0, detVarT = 0, detAbsErr = 0;
+        int detCount = 0;
+
+        for (int y = 1; y < effectiveHeight - 1; y++) {
+            int yOffset = y * tw;
+            for (int x = 1; x < tw - 1; x++) {
+                int idx = yOffset + x;
+
+                float gxT = tLum[idx + 1] - tLum[idx - 1];
+                float gyT = tLum[idx + tw] - tLum[idx - tw];
+                float gradT = Math.abs(gxT) + Math.abs(gyT);
+
+                float gxS = sLum[idx + 1] - sLum[idx - 1];
+                float gyS = sLum[idx + tw] - sLum[idx - tw];
+                float gradS = Math.abs(gxS) + Math.abs(gyS);
+
+                // بكسل حافة/كتابة داخل الزر
+                if (gradT > 18.0f || gradS > 18.0f) {
+                    detCount++;
+                    double dlS = sLum[idx] - lumMeanS;
+                    double dlT = tLum[idx] - lumMeanT;
+
+                    detVarS += dlS * dlS;
+                    detVarT += dlT * dlT;
+                    detCross += dlS * dlT;
+
+                    int sc = screenPixels[idx];
+                    int tc = templatePixels[idx];
+                    detAbsErr += Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF))
+                               + Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF))
+                               + Math.abs((sc & 0xFF) - (tc & 0xFF));
+                }
+            }
         }
 
-        // دمج 65% للارتباط الهيكلي البنيوي + 35% لتطابق الألوان كما في Macrorify
-        double finalScore = (corr * 0.65 + colorRatio * 0.35) * 100.0;
-        return Math.min(100.0, finalScore);
+        double scoreDetail = corrColor;
+        if (detCount >= 16 && detVarS > 10.0 && detVarT > 10.0) {
+            scoreDetail = Math.max(0.0, detCross / (Math.sqrt(detVarS * detVarT) + 1e-4));
+        }
+
+        // 4. معامل دقة الألوان (Color Fidelity)
+        double maeAll = (absErrSum / (total * 3.0)) / 255.0;
+        double maeDet = detCount >= 16 ? (detAbsErr / (detCount * 3.0)) / 255.0 : maeAll;
+        int safeTol = Math.max(15, Math.min(50, colorTolerance));
+        double colorFactor = Math.max(0.0, 1.0 - (maeAll * 0.3 + maeDet * 0.7) * (30.0 / safeTol));
+
+        // 5. الاختناق البنيوي الصارم (إذا تغير النص تسقط النتيجة كلياً ولا ترفعها الخلفية)
+        double combCorr = (detCount >= 16) ? Math.min(corrColor, scoreDetail) : corrColor;
+        double finalScore = combCorr * 100.0 * colorFactor;
+
+        // عقوبة إضافية صارمة إذا كان النص غير متطابق
+        if (detCount >= 16 && scoreDetail < 0.85) {
+            double penalty = scoreDetail / 0.85;
+            finalScore *= penalty;
+        }
+
+        return Math.min(100.0, Math.max(0.0, finalScore));
     }
 
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY, int colorTolerance, boolean ignoreBottomBadge) {
