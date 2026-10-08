@@ -10,7 +10,7 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxHeight="540dp">
+        android:maxHeight="560dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -35,7 +35,7 @@
                 android:paddingStart="8dp"
                 android:layout_marginBottom="10dp" />
 
-            <!-- عارض الصورة المباشر مع زر إعادة التأطير بالمستطيل -->
+            <!-- عارض صورة الهدف المباشر مع زر إعادة التأطير بالمستطيل -->
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="120dp"
@@ -59,7 +59,6 @@
                     android:background="#88000000"
                     android:padding="3dp" />
 
-                <!-- زر إعادة فتح المستطيل المطاطي لتعديل الإطار يدوياً -->
                 <ImageView
                     android:id="@+id/btnReCropRubberFrame"
                     android:layout_width="32dp"
@@ -71,7 +70,7 @@
                     app:tint="#00E5FF" />
             </FrameLayout>
 
-            <!-- 1. نسبة التطابق -->
+            <!-- 1. نسبة التطابق للهدف الرئيسي -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -88,7 +87,7 @@
                 android:paddingStart="8dp"
                 android:layout_marginBottom="10dp" />
 
-            <!-- 2. تساهل الإضاءة وأشعة الشمس -->
+            <!-- 2. تساهل الإضاءة للهدف الرئيسي -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -129,7 +128,7 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
-            <!-- 4. تعديل البكسل (+/- 1px) القابل للتراجع والعكس بحرية -->
+            <!-- 4. تعديل البكسل (+/- 1px) العكسي -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -183,13 +182,13 @@
                     android:layout_marginStart="4dp" />
             </LinearLayout>
 
-            <!-- 5. قسم العلامة المميزة المرجعية (Landmark Anchor) لحل مشكلة الخريطة المتحركة -->
+            <!-- 5. قسم العلامة المميزة المرجعية (Landmark Anchor) مع صندوق المعاينة الحقيقي -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:background="#1E293B"
-                android:padding="10dp"
+                android:padding="12dp"
                 android:layout_marginBottom="14dp">
 
                 <LinearLayout
@@ -201,9 +200,9 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Landmark Anchor (العلامة المميزة المرجعية)"
+                        android:text="Landmark Anchor (العلامة المرجعية)"
                         android:textColor="#38BDF8"
-                        android:textSize="12sp"
+                        android:textSize="13sp"
                         android:textStyle="bold" />
                     <Switch
                         android:id="@+id/swEnableAnchor"
@@ -215,21 +214,108 @@
                     android:id="@+id/tvAnchorStatusDesc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="يمنع النقر إلا إذا وُجدت علامة مميزة قريبة (صخرة/جدار) بنفس الموضع النسبي."
+                    android:text="يمنع النقر إلا إذا وُجدت العلامة المرجعية بجوار الهدف بنفس الموضع النسبي."
                     android:textColor="#94A3B8"
                     android:textSize="10sp"
                     android:paddingTop="2dp"
                     android:paddingBottom="6dp" />
 
-                <Button
-                    android:id="@+id/btnCaptureLandmarkAnchor"
+                <!-- صندوق المعاينة البصرية المباشر للعلامة المرجعية -->
+                <FrameLayout
+                    android:id="@+id/layoutAnchorPreviewContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="90dp"
+                    android:background="#0F172A"
+                    android:layout_marginBottom="8dp">
+
+                    <ImageView
+                        android:id="@+id/ivAnchorThumbPreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitCenter" />
+
+                    <TextView
+                        android:id="@+id/tvAnchorEmptyPlaceholder"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:text="لم يتم التقاط علامة مرجعية بعد"
+                        android:textColor="#64748B"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tvAnchorOffsetBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom|end"
+                        android:text="[Offset: 0, 0]"
+                        android:textColor="#38BDF8"
+                        android:textSize="10sp"
+                        android:background="#88000000"
+                        android:padding="2dp"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <!-- إعدادات نسبة تطابق وتسامح العلامة المميزة -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Anchor Similarity % (تطابق العلامة):"
+                    android:textColor="#38BDF8"
+                    android:textSize="11sp" />
+                <EditText
+                    android:id="@+id/etAnchorSim"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:inputType="number"
+                    android:textColor="#38BDF8"
+                    android:background="#0F172A"
+                    android:paddingStart="6dp"
+                    android:layout_marginBottom="6dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Anchor Tolerance (تسامح ظلال العلامة):"
+                    android:textColor="#38BDF8"
+                    android:textSize="11sp" />
+                <EditText
+                    android:id="@+id/etAnchorTolerance"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:inputType="number"
+                    android:textColor="#38BDF8"
+                    android:background="#0F172A"
+                    android:paddingStart="6dp"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- أزرار التقاط وحذف العلامة المميزة -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="38dp"
-                    android:text="📷 التقاط العلامة المميزة بالمستطيل"
-                    android:backgroundTint="#0284C7"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnCaptureLandmarkAnchor"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:text="📷 التقاط العلامة بالمستطيل"
+                        android:backgroundTint="#0284C7"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnDeleteAnchor"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:text="🗑️"
+                        android:backgroundTint="#EF4444"
+                        android:textColor="#FFFFFF"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
             </LinearLayout>
 
             <Button
