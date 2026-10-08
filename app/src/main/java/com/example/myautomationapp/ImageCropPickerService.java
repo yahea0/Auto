@@ -3,6 +3,7 @@ package com.example.myautomationapp;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
@@ -32,7 +33,7 @@ public class ImageCropPickerService extends Service {
     private boolean isStandaloneClickImage = false;
     private boolean isCustomRegionPicker = false;
     private boolean isAlternateTemplate = false;
-    private boolean isAnchorCapture = false; // التقاط علامة مميزة مرجعية
+    private boolean isAnchorCapture = false;
     private int parentTargetX, parentTargetY;
 
     @Nullable
@@ -106,9 +107,17 @@ public class ImageCropPickerService extends Service {
     private void updateLabels() {
         int[] loc = new int[2];
         if (cropFrameView != null) cropFrameView.getLocationOnScreen(loc);
-        if (tvCropCoords != null) tvCropCoords.setText("X: " + loc[0] + "  Y: " + loc[1]);
-        if (tvCropDimensions != null && cropFrameView != null) {
-            tvCropDimensions.setText("W: " + cropFrameView.getWidth() + "  H: " + cropFrameView.getHeight());
+
+        if (isAnchorCapture && tvCropDimensions != null) {
+            tvCropCoords.setText("X: " + loc[0] + "  Y: " + loc[1]);
+            tvCropDimensions.setText("📍 حدد العلامة المرجعية (صخرة/جدار)");
+            tvCropDimensions.setTextColor(Color.parseColor("#38BDF8"));
+        } else {
+            if (tvCropCoords != null) tvCropCoords.setText("X: " + loc[0] + "  Y: " + loc[1]);
+            if (tvCropDimensions != null && cropFrameView != null) {
+                tvCropDimensions.setText("W: " + cropFrameView.getWidth() + "  H: " + cropFrameView.getHeight());
+                tvCropDimensions.setTextColor(Color.parseColor("#00E5FF"));
+            }
         }
     }
 
@@ -125,7 +134,6 @@ public class ImageCropPickerService extends Service {
                         initX = frameParams.x; initY = frameParams.y;
                         initW = frameParams.width; initH = frameParams.height;
                         touchX = event.getRawX(); touchY = event.getRawY();
-
                         isResizing = (event.getX() > frameParams.width - 70 && event.getY() > frameParams.height - 70);
                         return true;
 
@@ -235,8 +243,9 @@ public class ImageCropPickerService extends Service {
                 Intent intent = new Intent("ANCHOR_TEMPLATE_CROPPED");
                 intent.setPackage(getPackageName());
                 intent.putExtra("anchor_path", savedPath);
-                intent.putExtra("rel_x", realX - parentTargetX); // المسافة الأفقية الدقيقة عن الهدف
-                intent.putExtra("rel_y", realY - parentTargetY); // المسافة الرأسية الدقيقة عن الهدف
+                // حساب المسافة النسبية الحقيقية بين العلامة والهدف
+                intent.putExtra("rel_x", realX - parentTargetX);
+                intent.putExtra("rel_y", realY - parentTargetY);
                 sendBroadcast(intent);
             } else {
                 String actionName = isAlternateTemplate ? "ALTERNATE_TEMPLATE_CROPPED" : (isStandaloneClickImage ? "CLICK_IMAGE_ACTION_CROPPED" : "IMAGE_TEMPLATE_CROPPED");
