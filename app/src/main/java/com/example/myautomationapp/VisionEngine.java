@@ -77,7 +77,7 @@ public class VisionEngine {
     }
 
     /**
-     * فحص وجود العلامة المميزة المرجعية (Landmark Anchor) في موضعها النسبي بالضبط
+     * التحقق الصارم من وجود العلامة المميزة المرجعية (Landmark Anchor) بجوار الهدف في الموضع النسبي المحدد
      */
     public static boolean verifyAnchorAtRelativeOffset(Bitmap screen, Bitmap anchorBmp, int targetX, int targetY, int relX, int relY, int tolerance, double minThresh) {
         if (screen == null || anchorBmp == null) return false;
@@ -85,12 +85,11 @@ public class VisionEngine {
         int expectedX = targetX + relX;
         int expectedY = targetY + relY;
 
-        // فحص في نافذة صغيرة حول الموقع النسبي المتوقع (±6 بكسل لتحمل حركة الكاميرا الطفيفة)
         for (int dy = -6; dy <= 6; dy += 2) {
             for (int dx = -6; dx <= 6; dx += 2) {
                 double sim = compareSubRegionStrict(screen, anchorBmp, expectedX + dx, expectedY + dy, tolerance, false);
                 if (sim >= minThresh) {
-                    return true; // تم العثور على العلامة المميزة في مكانها بالضبط!
+                    return true;
                 }
             }
         }
@@ -98,7 +97,7 @@ public class VisionEngine {
     }
 
     /**
-     * محرك البحث الشامل مع القفل المكاني والتحقق الإلزامي من العلامة المميزة
+     * المسح الفائق مع القفل المكاني والتحقق الإلزامي من وجود العلامة المميزة المرجعية
      */
     public static Point scanAndFindTemplateWithSpatialLock(Bitmap screen, Bitmap template, Bitmap anchorBmp, int searchX, int searchY, int searchW, int searchH, int expectedX, int expectedY, double minThreshold, int colorTolerance, boolean ignoreLevelBadge, boolean hasAnchor, int relAnchorX, int relAnchorY, int anchorTol, double anchorThresh) {
         if (screen == null || template == null) return null;
@@ -115,7 +114,7 @@ public class VisionEngine {
         int limitX = Math.min(sw - tw, boundX + searchW);
         int limitY = Math.min(sh - th, boundY + searchH);
 
-        // 1. فحص فوري للموضع المباشر
+        // فحص الموضع المباشر أولاً
         double directSim = compareSubRegionStrict(screen, template, boundX, boundY, colorTolerance, ignoreLevelBadge);
         if (directSim >= minThreshold) {
             if (!hasAnchor || verifyAnchorAtRelativeOffset(screen, anchorBmp, boundX, boundY, relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
@@ -170,7 +169,7 @@ public class VisionEngine {
                         if (spatialScore > highestSpatialScore) {
                             double strictSim = compareSubRegionStrict(screen, template, x, y, colorTolerance, ignoreLevelBadge);
                             if (strictSim >= minThreshold) {
-                                // شرط الأمان القاطع: إذا كان للهدف علامة مميزة، يجب أن تتطابق العلامة المرجعية بجواره!
+                                // شرط الأمان القاطع في لعبة الفاتحون: يجب وجود العلامة المميزة المرجعية!
                                 if (!hasAnchor || verifyAnchorAtRelativeOffset(screen, anchorBmp, x, y, relAnchorX, relAnchorY, anchorTol, anchorThresh)) {
                                     highestSpatialScore = spatialScore;
                                     bestLockedPoint = new Point(x, y);
