@@ -19,8 +19,8 @@ import android.view.WindowManager;
 import java.nio.ByteBuffer;
 
 /**
- * محرك التقاط الشاشة الحي فائق السرعة (Real-Time 120 FPS Pipeline)
- * مصمم خصيصاً لشاشات 120Hz ومعالجات Snapdragon دون استهلاك للذاكرة (Zero Allocation).
+ * محرك التقاط الشاشة المباشر فائق السرعة (Real-Time 120 FPS Stream Pipeline)
+ * مصمم لتفادي الـ Garbage Collector عبر حجز الذاكرة مسبقاً (Zero Allocation).
  */
 public class ScreenCaptureManager {
     private static ScreenCaptureManager instance;
@@ -32,7 +32,7 @@ public class ScreenCaptureManager {
 
     private int screenWidth, screenHeight, screenDensity;
 
-    // نظام التخزين المزدوج (Double-Buffering) لضمان عدم حدوث تجميد أو Garbage Collection
+    // نظام التخزين المزدوج (Double-Buffering)
     private Bitmap frontBitmap;
     private Bitmap backBitmap;
     private final Object frameLock = new Object();
@@ -41,7 +41,9 @@ public class ScreenCaptureManager {
     private volatile boolean isRunning = false;
 
     public static synchronized ScreenCaptureManager getInstance() {
-        if (instance == null) instance = new ScreenCaptureManager();
+        if (instance == null) {
+            instance = new ScreenCaptureManager();
+        }
         return instance;
     }
 
@@ -56,7 +58,7 @@ public class ScreenCaptureManager {
         screenHeight = realDm.heightPixels;
         screenDensity = realDm.densityDpi;
 
-        // تجهيز الصور المخزنة مسبقاً لمنع تخصيص 10MB في كل فريم
+        // حجز نسختين من الصور مسبقاً لمنع إنشائها داخل حلقة التكرار
         frontBitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
         backBitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888);
         cleanDirectBuffer = ByteBuffer.allocateDirect(screenWidth * screenHeight * 4);
@@ -75,19 +77,18 @@ public class ScreenCaptureManager {
     private void setupLiveCapture() {
         if (mediaProjection == null) return;
 
-        // خيط معالجة بأعلى أولوية رسومية في أندرويد لضمان 120 فريم في الثانية
+        // تخصيص خيط معالجة بأعلى أولوية رسومية في أندرويد لضمان استقرار الـ 120Hz
         captureThread = new HandlerThread("Realme120FpsCaptureThread", Process.THREAD_PRIORITY_URGENT_DISPLAY);
         captureThread.start();
         captureHandler = new Handler(captureThread.getLooper());
 
-        // سعة طابور 2 فقط لإسقاط الفريمات القديمة والتقاط المشهد اللحظي بأقل تأخير (0ms Lag)
+        // سعة طابور 2 لإلغاء تأخير الفريمات والحصول على الصورة اللحظية فوراً
         imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2);
         isRunning = true;
 
         imageReader.setOnImageAvailableListener(reader -> {
             Image image = null;
             try {
-                // التقاط أحدث فريم وتجاهل الفريمات القديمة
                 image = reader.acquireLatestImage();
                 if (image != null && isRunning) {
                     Image.Plane plane = image.getPlanes()[0];
@@ -97,10 +98,8 @@ public class ScreenCaptureManager {
                     int rowPadding = rowStride - (pixelStride * screenWidth);
 
                     if (rowPadding == 0) {
-                        // حالة الذاكرة المتصلة بدون هوامش (أسرع مسار)
                         backBitmap.copyPixelsFromBuffer(buffer);
                     } else {
-                        // تفريغ الهوامش الإضافية للأدرينو GPU بدون إنشاء أي كائنات جديدة
                         cleanDirectBuffer.clear();
                         int rowBytes = screenWidth * 4;
                         int srcPos = 0;
@@ -114,7 +113,7 @@ public class ScreenCaptureManager {
                         backBitmap.copyPixelsFromBuffer(cleanDirectBuffer);
                     }
 
-                    // تبديل المؤشرات (Atomic Pointer Swap) في أقل من 1 ميكروثانية
+                    // تبديل الفريمات بلحظة واحدة وبدون استهلاك للذاكرة
                     synchronized (frameLock) {
                         Bitmap temp = frontBitmap;
                         frontBitmap = backBitmap;
@@ -123,7 +122,9 @@ public class ScreenCaptureManager {
                 }
             } catch (Exception ignored) {
             } finally {
-                if (image != null) image.close();
+                if (image != null) {
+                    image.close();
+                }
             }
         }, captureHandler);
 
@@ -136,7 +137,7 @@ public class ScreenCaptureManager {
     }
 
     /**
-     * إرجاع الفريم الحي فوراً بدون عمل copy() لضمان سرعة خيالية وصفر استهلاك للذاكرة.
+     * إرجاع الفريم الحي المباشر دون عمل copy() لضمان استجابة صفرية التأخير.
      */
     public Bitmap captureScreen() {
         synchronized (frameLock) {
@@ -148,7 +149,7 @@ public class ScreenCaptureManager {
     }
 
     /**
-     * في حال الحاجة لأخذ لقطة وحفظها كملف PNG منفصل
+     * لحفظ لقطة شاشة كملف مستقل دون التأثير على البث المباشر.
      */
     public Bitmap captureScreenSnapshot() {
         synchronized (frameLock) {
