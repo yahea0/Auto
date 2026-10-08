@@ -1,149 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="300dp"
+    android:layout_width="310dp"
     android:layout_height="wrap_content"
-    app:cardBackgroundColor="#252525"
+    app:cardBackgroundColor="#222222"
     app:cardCornerRadius="16dp"
     app:cardElevation="20dp">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:maxHeight="520dp">
 
-        <TextView
-            android:id="@+id/tvTemplateSettingsTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Template Settings"
-            android:textColor="#00E5FF"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:paddingBottom="12dp" />
-
-        <!-- 1. نسبة التطابق % -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Similarity % (نسبة التطابق):"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
-        <EditText
-            android:id="@+id/etTemplateSim"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:inputType="number"
-            android:textColor="#00E5FF"
-            android:background="#333333"
-            android:paddingStart="8dp"
-            android:layout_marginBottom="10dp" />
-
-        <!-- 2. تساهل أشعة الشمس واللون -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Sunlight / Color Tolerance (تساهل الإضاءة):"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp" />
-        <EditText
-            android:id="@+id/etTemplateTolerance"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:inputType="number"
-            android:hint="20 - 50 (افتراضي 30)"
-            android:textColor="#00E5FF"
-            android:background="#333333"
-            android:paddingStart="8dp"
-            android:layout_marginBottom="12dp" />
-
-        <!-- 3. مفتاح تجاهل مستوى المعسكر (1 إلى 10) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="#2E2E2E"
-            android:padding="10dp"
-            android:layout_marginBottom="12dp">
+            android:orientation="vertical"
+            android:padding="16dp">
+
             <TextView
-                android:layout_width="0dp"
+                android:id="@+id/tvTemplateSettingsTitle"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Ignore Camp Level\n(تجاهل لفل 1 إلى 10)"
+                android:text="Template Settings"
+                android:textColor="#00E5FF"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:paddingBottom="10dp" />
+
+            <!-- عارض الصورة المباشر لمشاهدة التعديل بالبكسل فوراً (Live Preview) -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:background="#181818"
+                android:layout_marginBottom="12dp">
+
+                <ImageView
+                    android:id="@+id/ivSettingsTemplatePreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter" />
+
+                <TextView
+                    android:id="@+id/tvLiveTrimDimensions"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom|end"
+                    android:text="[100 x 100 px]"
+                    android:textColor="#00E5FF"
+                    android:textSize="11sp"
+                    android:background="#88000000"
+                    android:padding="3dp" />
+            </FrameLayout>
+
+            <!-- 1. نسبة التطابق % -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Similarity % (نسبة التطابق المطلوبة):"
                 android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textSize="13sp" />
+            <EditText
+                android:id="@+id/etTemplateSim"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="number"
+                android:textColor="#00E5FF"
+                android:background="#333333"
+                android:paddingStart="8dp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- 2. تساهل أشعة الشمس والإضاءة -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Light &amp; Color Tolerance (تساهل الإضاءة):"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
+            <EditText
+                android:id="@+id/etTemplateTolerance"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:inputType="number"
+                android:hint="20 - 50 (افتراضي 30)"
+                android:textColor="#00E5FF"
+                android:background="#333333"
+                android:paddingStart="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- 3. عزل وتجاهل الشارات والأرقام المتغيرة (مثل اللفل أو العدادات) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#2E2E2E"
+                android:padding="10dp"
+                android:layout_marginBottom="12dp">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Ignore Variable Badge\n(تجاهل الشارات والأرقام المتغيرة)"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+                <Switch
+                    android:id="@+id/swIgnoreLevelBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <!-- 4. أزرار تعديل القالب بالبكسل (+/- 1px) مع رؤية التغيير المباشر -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pixel Trim (+/- 1px تعديل بالبكسل):"
+                android:textColor="#C084FC"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:paddingBottom="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="14dp">
+
+                <Button
+                    android:id="@+id/btnTrimWMinus"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="W -1"
+                    android:textSize="11sp"
+                    android:backgroundTint="#3A3A3A" />
+                <Button
+                    android:id="@+id/btnTrimWPlus"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="W +1"
+                    android:textSize="11sp"
+                    android:backgroundTint="#3A3A3A"
+                    android:layout_marginStart="4dp" />
+                <Button
+                    android:id="@+id/btnTrimHMinus"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="H -1"
+                    android:textSize="11sp"
+                    android:backgroundTint="#3A3A3A"
+                    android:layout_marginStart="4dp" />
+                <Button
+                    android:id="@+id/btnTrimHPlus"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="H +1"
+                    android:textSize="11sp"
+                    android:backgroundTint="#3A3A3A"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnSaveTemplateSettings"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:text="SAVE SETTINGS"
+                android:backgroundTint="#00E5FF"
+                android:textColor="#121212"
                 android:textStyle="bold" />
-            <Switch
-                android:id="@+id/swIgnoreLevelBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+
         </LinearLayout>
-
-        <!-- 4. تعديل الحجم بالبكسل +/- -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Pixel Trim (+/- 1px لتعديل القالب):"
-            android:textColor="#C084FC"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:paddingBottom="4dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="14dp">
-
-            <Button
-                android:id="@+id/btnTrimWMinus"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:text="W -1"
-                android:textSize="11sp"
-                android:backgroundTint="#3A3A3A" />
-            <Button
-                android:id="@+id/btnTrimWPlus"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:text="W +1"
-                android:textSize="11sp"
-                android:backgroundTint="#3A3A3A"
-                android:layout_marginStart="4dp" />
-            <Button
-                android:id="@+id/btnTrimHMinus"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:text="H -1"
-                android:textSize="11sp"
-                android:backgroundTint="#3A3A3A"
-                android:layout_marginStart="4dp" />
-            <Button
-                android:id="@+id/btnTrimHPlus"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_weight="1"
-                android:text="H +1"
-                android:textSize="11sp"
-                android:backgroundTint="#3A3A3A"
-                android:layout_marginStart="4dp" />
-        </LinearLayout>
-
-        <Button
-            android:id="@+id/btnSaveTemplateSettings"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="SAVE SETTINGS"
-            android:backgroundTint="#00E5FF"
-            android:textColor="#121212"
-            android:textStyle="bold" />
-
-    </LinearLayout>
+    </ScrollView>
 </androidx.cardview.widget.CardView>
