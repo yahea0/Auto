@@ -1,5 +1,8 @@
 package com.example.myautomationapp;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Action implements Cloneable {
     private String type;
     private String detail;
@@ -21,9 +24,14 @@ public class Action implements Cloneable {
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
-    // نمط ومنطقة الفحص (Detect Location)
-    private String detectLocationMode = "CAPTURED"; // CAPTURED, CUSTOM, FULL_SCREEN
+    // نمط ومنطقة الفحص
+    private String detectLocationMode = "CAPTURED";
     private int customRegionX, customRegionY, customRegionW, customRegionH;
+
+    // ترقية الذكاء الاصطناعي: دعم لقطات متعددة للأكشن ورصد جميع الأهداف على الشاشة
+    private List<String> alternateImagePaths = new ArrayList<>();
+    private boolean isMultiTargetEnabled = true; // رصد جميع المعسكرات المتطابقة والنقر عليها بالترتيب
+    private boolean isMultiScaleEnabled = true;  // فحص مختلف أحجام الزوم (Zoom In / Out)
 
     private int offsetX = 0;
     private int offsetY = 0;
@@ -120,10 +128,25 @@ public class Action implements Cloneable {
     public String getCustomName() { return customName; }
     public void setCustomName(String customName) { this.customName = customName; }
 
+    public List<String> getAlternateImagePaths() { return alternateImagePaths; }
+    public void addAlternateImagePath(String path) {
+        if (path != null && !alternateImagePaths.contains(path)) {
+            alternateImagePaths.add(path);
+        }
+    }
+
+    public boolean isMultiTargetEnabled() { return isMultiTargetEnabled; }
+    public void setMultiTargetEnabled(boolean multiTargetEnabled) { isMultiTargetEnabled = multiTargetEnabled; }
+
+    public boolean isMultiScaleEnabled() { return isMultiScaleEnabled; }
+    public void setMultiScaleEnabled(boolean multiScaleEnabled) { isMultiScaleEnabled = multiScaleEnabled; }
+
     @Override
     public Action clone() {
         try {
-            return (Action) super.clone();
+            Action copy = (Action) super.clone();
+            copy.alternateImagePaths = new ArrayList<>(this.alternateImagePaths);
+            return copy;
         } catch (CloneNotSupportedException e) {
             Action copy = new Action(this.type, this.detail, this.x, this.y);
             copy.delayBeforeMs = this.delayBeforeMs;
@@ -144,6 +167,9 @@ public class Action implements Cloneable {
             copy.offsetX = this.offsetX; copy.offsetY = this.offsetY;
             copy.isDisabled = this.isDisabled;
             copy.customName = this.customName;
+            copy.alternateImagePaths = new ArrayList<>(this.alternateImagePaths);
+            copy.isMultiTargetEnabled = this.isMultiTargetEnabled;
+            copy.isMultiScaleEnabled = this.isMultiScaleEnabled;
             return copy;
         }
     }
