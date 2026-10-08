@@ -21,7 +21,7 @@ public class VisionEngine {
         int tw = template.getWidth();
         int th = template.getHeight();
         
-        // إذا كان خيار عزل اللفل مفعلاً، نتجاهل الـ 25% السفلية من الصورة (حيث يوجد رقم 10 أو 1)
+        // عزل الـ 25% السفلية من الصورة لتجاهل الأرقام والشارات المتغيرة
         int effectiveHeight = ignoreBottomBadge ? (int) (th * 0.75) : th;
 
         int stepX = Math.max(1, tw / 10);
@@ -64,7 +64,6 @@ public class VisionEngine {
             int diffG = Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF));
             int diffB = Math.abs((sc & 0xFF) - (tc & 0xFF));
 
-            // تساهل أشعة الشمس اللوني
             if (diffR < colorTolerance && diffG < colorTolerance && diffB < colorTolerance) {
                 matched++;
             }
@@ -76,50 +75,47 @@ public class VisionEngine {
     }
 
     public static double compareSubRegionStrict(Bitmap screen, Bitmap template, int cropX, int cropY) {
-        return compareSubRegionStrict(screen, template, cropX, cropY, 28, false);
-    }
-
-    public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
-        List<Point> results = scanAndFindAllTemplates(screen, template, searchX, searchY, searchW, searchH, minThreshold, 28, false, 1);
-        return results.isEmpty() ? null : results.get(0);
+        return compareSubRegionStrict(screen, template, cropX, cropY, 30, false);
     }
 
     /**
-     * المسح الفائق متعدد الأهداف مع دعم تساهل الشمس وعزل أرقام اللفل
+     * محرك البحث الشامل مع خوارزمية القفل المكاني (Spatial Proximity Lock)
+     * يمنع القفز لأهداف أخرى مشابهة ويعطي الأولوية للهدف الأصلي ومحيطه
      */
-    public static List<Point> scanAndFindAllTemplates(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold, int colorTolerance, boolean ignoreLevelBadge, int maxMatches) {
-        List<Point> finalMatches = new ArrayList<>();
-        if (screen == null || template == null) return finalMatches;
+    public static Point scanAndFindTemplateWithSpatialLock(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, int expectedX, int expectedY, double minThreshold, int colorTolerance, boolean ignoreLevelBadge) {
+        if (screen == null || template == null) return null;
 
         int tw = template.getWidth();
         int th = template.getHeight();
         int sw = screen.getWidth();
         int sh = screen.getHeight();
 
-        if (tw <= 0 || th <= 0 || sw < tw || sh < th) return finalMatches;
+        if (tw <= 0 || th <= 0 || sw < tw || sh < th) return null;
 
         int boundX = Math.max(0, Math.min(searchX, sw - tw));
         int boundY = Math.max(0, Math.min(searchY, sh - th));
         int limitX = Math.min(sw - tw, boundX + searchW);
         int limitY = Math.min(sh - th, boundY + searchH);
 
-        // 1. فحص فوري للموضع المباشر
+        // 1. الفحص الفوري في الموقع الأصلي المتوقع
         double directSim = compareSubRegionStrict(screen, template, boundX, boundY, colorTolerance, ignoreLevelBadge);
         if (directSim >= minThreshold) {
-            finalMatches.add(new Point(boundX, boundY));
-            if (maxMatches == 1) return finalMatches;
+            return new Point(boundX, boundY);
         }
 
         List<Keypoint> keypoints = extractFeaturePoints(template, 48, ignoreLevelBadge);
         int kpCount = keypoints.size();
-        if (kpCount == 0) return finalMatches;
+        if (kpCount == 0) return null;
 
         int[] screenPixels = new int[sw * sh];
         screen.getPixels(screenPixels, 0, sw, 0, 0, sw, sh);
 
         int step = (tw > 70 && th > 70) ? 4 : 2;
         int maxAllowedMismatches = (int) (kpCount * (1.0 - (minThreshold / 100.0)) + 3);
-        int minDistance = Math.max(20, Math.min(tw, th) / 2);
+
+        Point bestLockedPoint = null;
+        double highestSpatialScore = 0.0;
+        double screenDiagonal = Math.hypot(sw, sh);
 
         for (int y = boundY; y <= limitY; y += step) {
             for (int x = boundX; x <= limitX; x += step) {
@@ -147,21 +143,17 @@ public class VisionEngine {
                 if (mismatches <= maxAllowedMismatches) {
                     double score = ((double) matched / kpCount) * 100.0;
                     if (score >= Math.max(35.0, minThreshold - 20.0)) {
-                        boolean isAlreadyFound = false;
-                        for (Point existing : finalMatches) {
-                            if (Math.hypot(existing.x - x, existing.y - y) < minDistance) {
-                                isAlreadyFound = true;
-                                break;
-                            }
-                        }
+                        // خوارزمية القفل المكاني: حساب المسافة من الموضع الأصلي لمنع القفز لعناصر أخرى مشابهة
+                        double distance = Math.hypot(x - expectedX, y - expectedY);
+                        double distancePenalty = (distance / screenDiagonal) * 15.0; // خصم تدريجي للعناصر البعيدة المتشابهة
+                        double spatialScore = score - distancePenalty;
 
-                        if (!isAlreadyFound) {
+                        if (spatialScore > highestSpatialScore) {
+                            // تدقيق بكسلي دقيق بنقاء 1 بكسل
                             double strictSim = compareSubRegionStrict(screen, template, x, y, colorTolerance, ignoreLevelBadge);
                             if (strictSim >= minThreshold) {
-                                finalMatches.add(new Point(x, y));
-                                if (finalMatches.size() >= maxMatches) {
-                                    return finalMatches;
-                                }
+                                highestSpatialScore = spatialScore;
+                                bestLockedPoint = new Point(x, y);
                             }
                         }
                     }
@@ -169,6 +161,10 @@ public class VisionEngine {
             }
         }
 
-        return finalMatches;
+        return bestLockedPoint;
+    }
+
+    public static Point scanAndFindTemplate(Bitmap screen, Bitmap template, int searchX, int searchY, int searchW, int searchH, double minThreshold) {
+        return scanAndFindTemplateWithSpatialLock(screen, template, searchX, searchY, searchW, searchH, searchX, searchY, minThreshold, 30, false);
     }
 }
