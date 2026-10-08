@@ -129,4 +129,16 @@ public class AutoAccessibilityService extends AccessibilityService {
     public void openRecents() { performGlobalAction(GLOBAL_ACTION_RECENTS); }
     public void openNotifications() { performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS); }
     public void openQuickSettings() { performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS); }
+
+    public void lockScreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+        }
+    }
+
+    public void takeScreenshot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT);
+        }
+    }
 }
