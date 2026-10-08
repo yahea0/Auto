@@ -90,10 +90,17 @@ public class Action implements Cloneable {
         syncPrimaryTemplate();
     }
 
-    public int getSimilarity() { return similarity; }
+    // تزامن تام للنسبة المئوية بين الأكشن وقالب التدريب
+    public int getSimilarity() { 
+        if (templatePool != null && !templatePool.isEmpty()) {
+            return templatePool.get(0).getSimilarity();
+        }
+        return similarity; 
+    }
+
     public void setSimilarity(int similarity) { 
         this.similarity = similarity;
-        if (!templatePool.isEmpty()) {
+        if (templatePool != null && !templatePool.isEmpty()) {
             templatePool.get(0).setSimilarity(similarity);
         }
     }
