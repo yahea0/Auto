@@ -15,7 +15,6 @@ public class Action implements Cloneable {
     private String scalingAlgorithm = "Aspect Ratio";
     private String clickStyle = "Single Click";
     
-    // إعدادات شرط الصورة
     private boolean hasCondition = false;
     private String conditionType = "No Condition";
     private String imageName = "img_1";
@@ -24,14 +23,13 @@ public class Action implements Cloneable {
     private boolean isNotAppear = false;
     private int cropX, cropY, cropW, cropH;
 
-    // نمط ومنطقة الفحص
     private String detectLocationMode = "CAPTURED";
     private int customRegionX, customRegionY, customRegionW, customRegionH;
 
-    // ترقية الذكاء الاصطناعي: دعم لقطات متعددة للأكشن ورصد جميع الأهداف على الشاشة
-    private List<String> alternateImagePaths = new ArrayList<>();
-    private boolean isMultiTargetEnabled = true; // رصد جميع المعسكرات المتطابقة والنقر عليها بالترتيب
-    private boolean isMultiScaleEnabled = true;  // فحص مختلف أحجام الزوم (Zoom In / Out)
+    // قائمة القوالب المتطورة للتدريب المتعدد (زوم، زوايا، إضاءة)
+    private List<TemplateItem> templatePool = new ArrayList<>();
+    private boolean isMultiTargetEnabled = true;
+    private boolean isMultiScaleEnabled = true;
 
     private int offsetX = 0;
     private int offsetY = 0;
@@ -87,10 +85,18 @@ public class Action implements Cloneable {
     public void setImageName(String imageName) { this.imageName = imageName; }
 
     public String getImagePath() { return imagePath; }
-    public void setImagePath(String imagePath) { this.imagePath = imagePath; }
+    public void setImagePath(String imagePath) { 
+        this.imagePath = imagePath;
+        syncPrimaryTemplate();
+    }
 
     public int getSimilarity() { return similarity; }
-    public void setSimilarity(int similarity) { this.similarity = similarity; }
+    public void setSimilarity(int similarity) { 
+        this.similarity = similarity;
+        if (!templatePool.isEmpty()) {
+            templatePool.get(0).setSimilarity(similarity);
+        }
+    }
 
     public boolean isNotAppear() { return isNotAppear; }
     public void setNotAppear(boolean notAppear) { isNotAppear = notAppear; }
@@ -128,10 +134,22 @@ public class Action implements Cloneable {
     public String getCustomName() { return customName; }
     public void setCustomName(String customName) { this.customName = customName; }
 
-    public List<String> getAlternateImagePaths() { return alternateImagePaths; }
-    public void addAlternateImagePath(String path) {
-        if (path != null && !alternateImagePaths.contains(path)) {
-            alternateImagePaths.add(path);
+    public List<TemplateItem> getTemplatePool() { 
+        syncPrimaryTemplate();
+        return templatePool; 
+    }
+
+    public void addTemplateItem(TemplateItem item) {
+        if (item != null) {
+            templatePool.add(item);
+        }
+    }
+
+    private void syncPrimaryTemplate() {
+        if (imagePath != null && templatePool.isEmpty()) {
+            TemplateItem primary = new TemplateItem("primary", imagePath, imageName);
+            primary.setSimilarity(similarity);
+            templatePool.add(primary);
         }
     }
 
@@ -145,7 +163,10 @@ public class Action implements Cloneable {
     public Action clone() {
         try {
             Action copy = (Action) super.clone();
-            copy.alternateImagePaths = new ArrayList<>(this.alternateImagePaths);
+            copy.templatePool = new ArrayList<>();
+            for (TemplateItem item : this.templatePool) {
+                copy.templatePool.add(item.clone());
+            }
             return copy;
         } catch (CloneNotSupportedException e) {
             Action copy = new Action(this.type, this.detail, this.x, this.y);
@@ -167,7 +188,10 @@ public class Action implements Cloneable {
             copy.offsetX = this.offsetX; copy.offsetY = this.offsetY;
             copy.isDisabled = this.isDisabled;
             copy.customName = this.customName;
-            copy.alternateImagePaths = new ArrayList<>(this.alternateImagePaths);
+            copy.templatePool = new ArrayList<>();
+            for (TemplateItem item : this.templatePool) {
+                copy.templatePool.add(item.clone());
+            }
             copy.isMultiTargetEnabled = this.isMultiTargetEnabled;
             copy.isMultiScaleEnabled = this.isMultiScaleEnabled;
             return copy;
