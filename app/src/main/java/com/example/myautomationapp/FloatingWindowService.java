@@ -40,7 +40,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -261,7 +260,7 @@ public class FloatingWindowService extends Service {
         stopButtonView = LayoutInflater.from(themedContext).inflate(R.layout.floating_stop_button, null);
         stopParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                layoutType, flags, PixelFormat.TRANSLUCENT);
+                layoutType, flags, PixelFormat.TRANSLENT);
         stopParams.gravity = Gravity.BOTTOM | Gravity.START;
         stopParams.x = 40;
         stopParams.y = 100;
@@ -566,6 +565,9 @@ public class FloatingWindowService extends Service {
         return "[Captured Location]";
     }
 
+    /**
+     * نافذة Detect Location: حصرية 100% بين الخيارات الثلاثة
+     */
     private void showDetectLocationDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         View dialogView = LayoutInflater.from(themedContext).inflate(R.layout.dialog_detect_location, null);
@@ -685,7 +687,7 @@ public class FloatingWindowService extends Service {
                             executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
                             Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر في مركزه بالضبط!", Toast.LENGTH_SHORT).show();
                         } else {
-                            Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة أو شروطه لم تكتمل!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة!", Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
@@ -982,24 +984,35 @@ public class FloatingWindowService extends Service {
 
     private double calculateActionSimilarity(Bitmap screen, Bitmap template, Action action) {
         String mode = action.getDetectLocationMode();
-        if ("FULL_SCREEN".equals(mode)) {
-            Point p = VisionEngine.scanAndFindTemplate(screen, template, 0, 0, screen.getWidth(), screen.getHeight(), 25.0);
-            if (p != null) {
-                return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
-            }
-            return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
-        } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-            Point p = VisionEngine.scanAndFindTemplate(screen, template, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), 25.0);
-            if (p != null) {
-                return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
-            }
-            return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
+        int searchX = 0, searchY = 0, searchW = screen.getWidth(), searchH = screen.getHeight();
+
+        if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
+            searchX = action.getCustomRegionX();
+            searchY = action.getCustomRegionY();
+            searchW = action.getCustomRegionW();
+            searchH = action.getCustomRegionH();
+        } else if ("CAPTURED".equals(mode)) {
+            searchX = Math.max(0, action.getCropX() - 20);
+            searchY = Math.max(0, action.getCropY() - 20);
+            searchW = action.getCropW() + 40;
+            searchH = action.getCropH() + 40;
+        }
+
+        Point p = VisionEngine.scanAndFindTemplate(
+                screen, template,
+                searchX, searchY, searchW, searchH,
+                action.getCropX(), action.getCropY(),
+                20.0, 35, false
+        );
+
+        if (p != null) {
+            return VisionEngine.compareSubRegionStrict(screen, template, p.x, p.y);
         }
         return VisionEngine.compareSubRegionStrict(screen, template, action.getCropX(), action.getCropY());
     }
 
     /**
-     * الدالة الوحيدة لإيجاد مركز الهدف بدقة تامة
+     * إيجاد موضع الهدف الحقيقي وإرجاع منتصف الصورة بالضبط
      */
     private Point findMatchCenterForAction(Bitmap screen, Action action) {
         if (screen == null) return null;
@@ -1017,19 +1030,29 @@ public class FloatingWindowService extends Service {
             int tolerance = item.getColorTolerance();
             boolean ignoreBadge = item.isIgnoreLevelBadge();
 
-            Point found = null;
-            if ("FULL_SCREEN".equals(mode)) {
-                found = VisionEngine.scanAndFindTemplate(screen, tBmp, 0, 0, screen.getWidth(), screen.getHeight(), minThresh, tolerance, ignoreBadge);
-            } else if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
-                found = VisionEngine.scanAndFindTemplate(screen, tBmp, action.getCustomRegionX(), action.getCustomRegionY(), action.getCustomRegionW(), action.getCustomRegionH(), minThresh, tolerance, ignoreBadge);
-            } else {
-                double sim = VisionEngine.compareSubRegionStrict(screen, tBmp, action.getCropX(), action.getCropY(), tolerance, ignoreBadge);
-                if (sim >= minThresh) {
-                    found = new Point(action.getCropX(), action.getCropY());
-                }
+            int searchX = 0, searchY = 0, searchW = screen.getWidth(), searchH = screen.getHeight();
+
+            if ("CUSTOM".equals(mode) && action.getCustomRegionW() > 0) {
+                searchX = action.getCustomRegionX();
+                searchY = action.getCustomRegionY();
+                searchW = action.getCustomRegionW();
+                searchH = action.getCustomRegionH();
+            } else if ("CAPTURED".equals(mode)) {
+                searchX = Math.max(0, action.getCropX() - 30);
+                searchY = Math.max(0, action.getCropY() - 30);
+                searchW = action.getCropW() + 60;
+                searchH = action.getCropH() + 60;
             }
 
+            Point found = VisionEngine.scanAndFindTemplate(
+                    screen, tBmp,
+                    searchX, searchY, searchW, searchH,
+                    action.getCropX(), action.getCropY(),
+                    minThresh, tolerance, ignoreBadge
+            );
+
             if (found != null) {
+                // دائماً المركز في قلب الهدف بالبكسل الواحد
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1490,7 +1513,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو المستمر: مسح سريع ومباشر والنقر في مركز الهدف
+     * تشغيل الماكرو المستمر: مسح هرمي فائق السرعة والنقر في قلب الهدف بالضبط
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
@@ -1530,23 +1553,26 @@ public class FloatingWindowService extends Service {
                     if (AutoAccessibilityService.instance != null) {
                         String type = action.getType();
 
+                        // 1. أكشن Click Image
                         if ("Click Image".equals(type)) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null) {
-                                Point targetCenter = findMatchCenterForAction(screen, action);
-                                if (targetCenter != null) {
-                                    int clickTargetX = targetCenter.x + action.getOffsetX();
-                                    int clickTargetY = targetCenter.y + action.getOffsetY();
+                                Point matchCenter = findMatchCenterForAction(screen, action);
+                                if (matchCenter != null) {
+                                    int clickTargetX = matchCenter.x + action.getOffsetX();
+                                    int clickTargetY = matchCenter.y + action.getOffsetY();
                                     executeSingleActionNow(new Action("Click (x, y)", "", clickTargetX, clickTargetY));
                                 }
                             }
-                        } else if ("Click (x, y)".equals(type)) {
+                        } 
+                        // 2. أكشن Click (x, y) مع شرط الصورة
+                        else if ("Click (x, y)".equals(type)) {
                             if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
                                 boolean conditionMet = false;
                                 Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                                 if (screen != null) {
-                                    Point targetCenter = findMatchCenterForAction(screen, action);
-                                    conditionMet = (targetCenter != null);
+                                    Point matchCenter = findMatchCenterForAction(screen, action);
+                                    conditionMet = (matchCenter != null);
                                     if (action.isNotAppear()) conditionMet = !conditionMet;
                                 }
                                 if (!conditionMet) continue;
