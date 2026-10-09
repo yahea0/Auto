@@ -1,6 +1,7 @@
 package com.example.myautomationapp;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Point;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,7 +84,7 @@ public class VisionEngine {
                 TemplateItem item = action.getTemplatePool().get(i);
                 if (item.getImagePath() != null) {
                     try {
-                        Bitmap altTpl = android.graphics.BitmapFactory.decodeFile(item.getImagePath());
+                        Bitmap altTpl = BitmapFactory.decodeFile(item.getImagePath());
                         if (altTpl != null) {
                             Point altMatch = scanAndFindTemplate(screen, altTpl, searchX, searchY, searchW, searchH, expX, expY,
                                     item.getSimilarity() > 0 ? item.getSimilarity() : threshold,
@@ -283,7 +284,6 @@ public class VisionEngine {
                         maxFinalSim = sim;
                         bestMatchPoint = new Point(fx, fy);
                     }
-                    // إذا وجدنا تطابقاً ممتازاً يفوق العتبة، نختصر الوقت ونعتمده فوراً
                     if (maxFinalSim >= Math.max(minThreshold, 85.0)) {
                         return bestMatchPoint;
                     }
