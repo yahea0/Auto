@@ -87,15 +87,17 @@ public class ActionActivity extends AppCompatActivity {
                         String type = action.getType();
                         if ("Click (x, y)".equals(type)) {
                             AutoAccessibilityService.instance.click(action.getX() + action.getOffsetX(), action.getY() + action.getOffsetY());
-                        } else if ("Click Image".equals(type)) {
+                        } else if ("Click Image".equals(type) || action.getImagePath() != null) {
                             Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
                             if (screen != null && action.getImagePath() != null) {
                                 Bitmap template = BitmapFactory.decodeFile(action.getImagePath());
                                 if (template != null) {
                                     Point match = VisionEngine.findActionTarget(screen, template, action);
                                     if (match != null) {
-                                        AutoAccessibilityService.instance.click(match.x + (template.getWidth() / 2) + action.getOffsetX(),
-                                                                               match.y + (template.getHeight() / 2) + action.getOffsetY());
+                                        // احتساب مركز الهدف اللحظي داخل Custom Region أو Full Screen بدقة تامة
+                                        int targetX = match.x + (template.getWidth() / 2) + action.getOffsetX();
+                                        int targetY = match.y + (template.getHeight() / 2) + action.getOffsetY();
+                                        AutoAccessibilityService.instance.click(targetX, targetY);
                                     }
                                     template.recycle();
                                 }
@@ -189,13 +191,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة أمر السحب", Toast.LENGTH_SHORT).show();
         });
 
-        // 5. Open App
-        dialogView.findViewById(R.id.btnOpenApp).setOnClickListener(v -> {
-            dialog.dismiss();
-            Toast.makeText(this, "Open App (قريباً)", Toast.LENGTH_SHORT).show();
-        });
-
-        // 6. Press Back
+        // 5. Press Back
         dialogView.findViewById(R.id.btnPressBack).setOnClickListener(v -> {
             dialog.dismiss();
             Action backAction = new Action("Press Back", "زر رجوع الجهاز");
@@ -205,7 +201,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة أمر الرجوع", Toast.LENGTH_SHORT).show();
         });
 
-        // 7. Press Home
+        // 6. Press Home
         dialogView.findViewById(R.id.btnPressHome).setOnClickListener(v -> {
             dialog.dismiss();
             Action homeAction = new Action("Press Home", "زر الشاشة الرئيسية");
@@ -215,7 +211,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة أمر الهوم", Toast.LENGTH_SHORT).show();
         });
 
-        // 8. Open Recent
+        // 7. Open Recent
         dialogView.findViewById(R.id.btnOpenRecent).setOnClickListener(v -> {
             dialog.dismiss();
             Action recentAction = new Action("Open Recent", "شاشة التطبيقات الحديثة");
@@ -225,7 +221,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة أمر التطبيقات الحديثة", Toast.LENGTH_SHORT).show();
         });
 
-        // 9. Notification
+        // 8. Notification
         dialogView.findViewById(R.id.btnOpenNotification).setOnClickListener(v -> {
             dialog.dismiss();
             Action notifAction = new Action("Notification", "فتح لوحة الإشعارات");
@@ -235,7 +231,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة أمر الإشعارات", Toast.LENGTH_SHORT).show();
         });
 
-        // 10. Screenshot
+        // 9. Screenshot
         dialogView.findViewById(R.id.btnScreenshot).setOnClickListener(v -> {
             dialog.dismiss();
             Action shotAction = new Action("Screenshot", "أخذ لقطة شاشة");
@@ -245,17 +241,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة لقطة الشاشة", Toast.LENGTH_SHORT).show();
         });
 
-        // 11. Toast Message
-        dialogView.findViewById(R.id.btnToastMessage).setOnClickListener(v -> {
-            dialog.dismiss();
-            Action toastAction = new Action("Toast Message", "رسالة منبثقة");
-            toastAction.setDelayMs(400);
-            GlobalData.actionList.add(toastAction);
-            adapter.notifyDataSetChanged();
-            Toast.makeText(this, "تمت إضافة رسالة Toast", Toast.LENGTH_SHORT).show();
-        });
-
-        // 12. Wait
+        // 10. Wait
         dialogView.findViewById(R.id.btnWait).setOnClickListener(v -> {
             dialog.dismiss();
             Action waitAction = new Action("Wait", "انتظار 1 ثانية");
@@ -265,7 +251,7 @@ public class ActionActivity extends AppCompatActivity {
             Toast.makeText(this, "تمت إضافة الانتظار", Toast.LENGTH_SHORT).show();
         });
 
-        // 13. Stop Macro
+        // 11. Stop Macro
         dialogView.findViewById(R.id.btnStopMacro).setOnClickListener(v -> {
             dialog.dismiss();
             Action stopAction = new Action("Stop Macro", "إيقاف الماكرو");
