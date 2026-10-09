@@ -2,19 +2,25 @@ package com.example.myautomationapp;
 
 import android.graphics.Bitmap;
 import android.graphics.Point;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * محرك البحث والتحقق الصارم فائق الدقة (Macrorify-Grade Strict Vision Engine)
- * يعتمد على مطابقة مصفوفة التردد العالي للنصوص (High-Frequency Text & Edge Bottleneck)
- * مع ارتباط الألوان ثلاثي القنوات (Multi-Channel ZNCC) وحظر القفز العشوائي في وضع CAPTURED.
+ * محرك البحث والتحقق فائق الدقة المطور (Macrorify-Grade Strict Vision Engine)
+ * يدعم بدقة كاملة: Captured Location و Custom Region و Full Screen
+ * مزود بنظام فحص المرشحات المتعددة (Multi-Candidate Adaptive ZNCC)
  */
 public class VisionEngine {
 
     public static Point findActionTarget(Bitmap screen, Bitmap template, Action action) {
-        if (screen == null || template == null || action == null) return null;
+        if (screen == null || template == null || action == null || screen.isRecycled() || template.isRecycled()) {
+            return null;
+        }
 
-        String mode = action.getDetectLocationMode();
-        if (mode == null) mode = "CAPTURED";
+        String rawMode = action.getDetectLocationMode();
+        if (rawMode == null) rawMode = "CAPTURED";
+        String modeUpper = rawMode.trim().toUpperCase();
 
         int sw = screen.getWidth();
         int sh = screen.getHeight();
@@ -22,31 +28,43 @@ public class VisionEngine {
         int searchX = 0, searchY = 0, searchW = sw, searchH = sh;
         int expX = -1, expY = -1;
 
-        if ("CAPTURED".equalsIgnoreCase(mode)) {
+        // 1. تحديد أبعاد البحث حسب الوضع بشكل مرن ودقيق
+        if (modeUpper.contains("CAPTUR")) {
             expX = action.getCropX();
             expY = action.getCropY();
-            searchX = Math.max(0, expX - 25);
-            searchY = Math.max(0, expY - 25);
-            searchW = action.getCropW() + 50;
-            searchH = action.getCropH() + 50;
-        } else if ("CUSTOM".equalsIgnoreCase(mode)) {
-            searchX = action.getCustomRegionX();
-            searchY = action.getCustomRegionY();
-            searchW = action.getCustomRegionW();
-            searchH = action.getCustomRegionH();
+            searchX = Math.max(0, expX - 35);
+            searchY = Math.max(0, expY - 35);
+            searchW = Math.min(sw - searchX, action.getCropW() + 70);
+            searchH = Math.min(sh - searchY, action.getCropH() + 70);
+        } else if (modeUpper.contains("CUSTOM")) {
+            int cx = action.getCustomRegionX();
+            int cy = action.getCustomRegionY();
+            int cw = action.getCustomRegionW();
+            int ch = action.getCustomRegionH();
+
+            if (cw > 10 && ch > 10) {
+                searchX = Math.max(0, Math.min(cx, sw - 10));
+                searchY = Math.max(0, Math.min(cy, sh - 10));
+                searchW = Math.min(sw - searchX, cw);
+                searchH = Math.min(sh - searchY, ch);
+            } else {
+                // في حال لم يتم تحديد أبعاد صالحة، نبحث في كامل الشاشة كإجراء أمان
+                searchX = 0; searchY = 0; searchW = sw; searchH = sh;
+            }
         } else {
+            // وضع Full Screen
             searchX = 0;
             searchY = 0;
             searchW = sw;
             searchH = sh;
         }
 
-        // استخراج النسبة والتسامح الحقيقي من القالب أو الأكشن بتزامن كامل
+        // استخراج النسبة والتسامح الحقيقي من القالب أو الأكشن
         double threshold = action.getSimilarity() > 0 ? action.getSimilarity() : 70.0;
         int colorTolerance = 30;
         boolean ignoreBadge = false;
 
-        if (!action.getTemplatePool().isEmpty()) {
+        if (action.getTemplatePool() != null && !action.getTemplatePool().isEmpty()) {
             TemplateItem primary = action.getTemplatePool().get(0);
             if (primary.getSimilarity() > 0) {
                 threshold = primary.getSimilarity();
@@ -55,7 +73,31 @@ public class VisionEngine {
             ignoreBadge = primary.isIgnoreLevelBadge();
         }
 
-        return scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, colorTolerance, ignoreBadge);
+        // فحص القالب الأساسي
+        Point match = scanAndFindTemplate(screen, template, searchX, searchY, searchW, searchH, expX, expY, threshold, colorTolerance, ignoreBadge);
+        if (match != null) return match;
+
+        // فحص القوالب البديلة إن وجدت في مصفوفة التدريب (Alternate Templates)
+        if (action.getTemplatePool() != null && action.getTemplatePool().size() > 1) {
+            for (int i = 1; i < action.getTemplatePool().size(); i++) {
+                TemplateItem item = action.getTemplatePool().get(i);
+                if (item.getImagePath() != null) {
+                    try {
+                        Bitmap altTpl = android.graphics.BitmapFactory.decodeFile(item.getImagePath());
+                        if (altTpl != null) {
+                            Point altMatch = scanAndFindTemplate(screen, altTpl, searchX, searchY, searchW, searchH, expX, expY,
+                                    item.getSimilarity() > 0 ? item.getSimilarity() : threshold,
+                                    item.getColorTolerance(),
+                                    item.isIgnoreLevelBadge());
+                            altTpl.recycle();
+                            if (altMatch != null) return altMatch;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        return null;
     }
 
     public static Point scanAndFindTemplate(Bitmap screen, Bitmap template,
@@ -79,7 +121,9 @@ public class VisionEngine {
 
         if (limitW < tw || limitH < effectiveTh) return null;
 
-        // 1. الفحص الصارم لوضع Captured Location
+        // ==========================================
+        // 1. الفحص الموضعي الصارم لوضع Captured Location
+        // ==========================================
         if (expectedX >= 0 && expectedY >= 0) {
             int testX = Math.max(boundX, Math.min(sw - tw, expectedX));
             int testY = Math.max(boundY, Math.min(sh - effectiveTh, expectedY));
@@ -89,11 +133,11 @@ public class VisionEngine {
                 return new Point(testX, testY);
             }
 
-            // فحص موضعي طفيف (±16 بكسل) لمعالجة اهتزاز رسم الشاشة البسيط
+            // فحص موضعي طفيف (±20 بكسل) لمعالجة اهتزاز رسم الشاشة البسيط
             Point localBest = null;
             double localMax = 0.0;
-            for (int dy = -16; dy <= 16; dy += 2) {
-                for (int dx = -16; dx <= 16; dx += 2) {
+            for (int dy = -20; dy <= 20; dy += 2) {
+                for (int dx = -20; dx <= 20; dx += 2) {
                     int curX = testX + dx;
                     int curY = testY + dy;
                     if (curX >= boundX && curX + tw <= sw && curY >= boundY && curY + effectiveTh <= sh) {
@@ -110,12 +154,17 @@ public class VisionEngine {
                 return localBest;
             }
 
-            // عزل تام: وضع CAPTURED مخصص لمكان الزر فقط؛ إذا لم يتطابق مكانه يرفض فوراً ولا يبحث عشوائياً في الشاشة
             return null;
         }
 
-        // 2. الهرم متعدد المقاييس (Pyramid ZNCC) لوضعي Full Screen و Custom Region
-        int scale = (limitW > 400 && limitH > 400) ? 4 : 2;
+        // ==========================================
+        // 2. الهرم البصري الذكي لوضعي Custom Region و Full Screen
+        // ==========================================
+        int scale = (limitW > 600 && limitH > 600) ? 4 : 2;
+        if (tw / scale < 8 || effectiveTh / scale < 8) {
+            scale = 2;
+        }
+
         int pyrSw = limitW / scale;
         int pyrSh = limitH / scale;
         int pyrTw = Math.max(2, tw / scale);
@@ -123,6 +172,7 @@ public class VisionEngine {
 
         if (pyrSw < pyrTw || pyrSh < pyrTh) return null;
 
+        // استخراج الإضاءة للقالب
         float[] tplLuma = new float[pyrTw * pyrTh];
         float tplSum = 0;
         int[] tplColors = new int[tw * effectiveTh];
@@ -143,23 +193,33 @@ public class VisionEngine {
             tplLuma[i] -= tplMean;
             tplVar += tplLuma[i] * tplLuma[i];
         }
-
         if (tplVar < 10.0f) tplVar = 10.0f;
 
+        // استخراج منطقة البحث وتدرج الإضاءة للشاشة بالكامل (مع إصلاح الخطأ السابق pyrSw)
         int[] screenRoi = new int[limitW * limitH];
         screen.getPixels(screenRoi, 0, limitW, boundX, boundY, limitW, limitH);
 
         float[] screenLuma = new float[pyrSw * pyrSh];
         for (int y = 0; y < pyrSh; y++) {
-            for (int x = 0; x < pyrSw; x++) {
-                int c = screenRoi[(y * scale) * limitW + (x * scale)];
-                screenLuma[y * pyrSw + x] = (((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 151 + (c & 0xFF) * 28) >> 8;
+            int rowOffsetRoi = (y * scale) * limitW;
+            int rowOffsetLuma = y * pyrSw;
+            for (int x = 0; x < pyrSw; x++) { // تصحيح: مسح كامل عرض المنطقة وليس القالب فقط!
+                int c = screenRoi[rowOffsetRoi + (x * scale)];
+                screenLuma[rowOffsetLuma + x] = (((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 151 + (c & 0xFF) * 28) >> 8;
             }
         }
 
-        int coarseStep = 2;
-        float bestCorr = -1.0f;
-        int candX = -1, candY = -1;
+        // تجميع أفضل المرشحات المتعددة (Multi-Candidates) لمنع الوقوع في فخ المرشح الخاطئ
+        class Candidate implements Comparable<Candidate> {
+            int x, y;
+            float score;
+            Candidate(int x, int y, float score) { this.x = x; this.y = y; this.score = score; }
+            @Override
+            public int compareTo(Candidate o) { return Float.compare(o.score, this.score); }
+        }
+
+        List<Candidate> candidates = new ArrayList<>();
+        int coarseStep = (scale == 4) ? 2 : 1;
 
         for (int y = 0; y <= pyrSh - pyrTh; y += coarseStep) {
             for (int x = 0; x <= pyrSw - pyrTw; x += coarseStep) {
@@ -183,42 +243,62 @@ public class VisionEngine {
                     }
                 }
 
-                if (patchVar < 25.0f || cross <= 0) continue;
+                if (patchVar < 20.0f || cross <= 0) continue;
 
                 float corr = cross / (float) (Math.sqrt(patchVar * tplVar) + 1e-4);
-                if (corr > bestCorr) {
-                    bestCorr = corr;
-                    candX = x * scale;
-                    candY = y * scale;
+                if (corr >= 0.38f) {
+                    candidates.add(new Candidate(x * scale, y * scale, corr));
                 }
             }
         }
 
-        if (bestCorr < 0.45f || candX < 0) {
+        if (candidates.isEmpty()) {
             return null;
         }
 
-        // 3. التدقيق الجراحي الأصلي بدقة 1 بكسل
-        int fineStartX = Math.max(boundX, boundX + candX - (scale * 2));
-        int fineEndX = Math.min(boundX + limitW - tw, boundX + candX + (scale * 2));
-        int fineStartY = Math.max(boundY, boundY + candY - (scale * 2));
-        int fineEndY = Math.min(boundY + limitH - effectiveTh, boundY + candY + (scale * 2));
+        // ترتيب المرشحات تنازلياً حسب النسبة
+        Collections.sort(candidates);
 
-        Point finalPoint = null;
+        // ==========================================
+        // 3. التدقيق الجراحي الأصلي بدقة 1 بكسل لأفضل المرشحات
+        // ==========================================
+        int testedCount = 0;
+        int maxCandidatesToTest = Math.min(8, candidates.size());
+        int searchRadius = scale * coarseStep + 4; // تغطية كامل الفجوة بين خطوات الهرم (±12px)
+
+        Point bestMatchPoint = null;
         double maxFinalSim = 0.0;
 
-        for (int fy = fineStartY; fy <= fineEndY; fy++) {
-            for (int fx = fineStartX; fx <= fineEndX; fx++) {
-                double sim = matchTemplateScore(screen, template, fx, fy, colorTolerance, ignoreBadge);
-                if (sim > maxFinalSim) {
-                    maxFinalSim = sim;
-                    finalPoint = new Point(fx, fy);
+        for (Candidate cand : candidates) {
+            testedCount++;
+            int fineStartX = Math.max(boundX, boundX + cand.x - searchRadius);
+            int fineEndX = Math.min(boundX + limitW - tw, boundX + cand.x + searchRadius);
+            int fineStartY = Math.max(boundY, boundY + cand.y - searchRadius);
+            int fineEndY = Math.min(boundY + limitH - effectiveTh, boundY + cand.y + searchRadius);
+
+            for (int fy = fineStartY; fy <= fineEndY; fy++) {
+                for (int fx = fineStartX; fx <= fineEndX; fx++) {
+                    double sim = matchTemplateScore(screen, template, fx, fy, colorTolerance, ignoreBadge);
+                    if (sim > maxFinalSim) {
+                        maxFinalSim = sim;
+                        bestMatchPoint = new Point(fx, fy);
+                    }
+                    // إذا وجدنا تطابقاً ممتازاً يفوق العتبة، نختصر الوقت ونعتمده فوراً
+                    if (maxFinalSim >= Math.max(minThreshold, 85.0)) {
+                        return bestMatchPoint;
+                    }
                 }
             }
+
+            if (maxFinalSim >= minThreshold && bestMatchPoint != null) {
+                return bestMatchPoint;
+            }
+
+            if (testedCount >= maxCandidatesToTest) break;
         }
 
-        if (maxFinalSim >= minThreshold && finalPoint != null) {
-            return finalPoint;
+        if (maxFinalSim >= minThreshold && bestMatchPoint != null) {
+            return bestMatchPoint;
         }
 
         return null;
@@ -293,7 +373,7 @@ public class VisionEngine {
 
             varS += drS * drS + dgS * dgS + dbS * dbS;
             varT += drT * drT + dgT * dgT + dbT * dbT;
-            crossColor += drS * drT + dgS * dgT + dbT * dbT;
+            crossColor += drS * drT + dgS * drT + dbS * dbT;
 
             absErrSum += Math.abs(((sc >> 16) & 0xFF) - ((tc >> 16) & 0xFF))
                        + Math.abs(((sc >> 8) & 0xFF) - ((tc >> 8) & 0xFF))
@@ -322,7 +402,6 @@ public class VisionEngine {
                 float gyS = sLum[idx + tw] - sLum[idx - tw];
                 float gradS = Math.abs(gxS) + Math.abs(gyS);
 
-                // بكسل حافة/كتابة داخل الزر
                 if (gradT > 18.0f || gradS > 18.0f) {
                     detCount++;
                     double dlS = sLum[idx] - lumMeanS;
@@ -352,11 +431,10 @@ public class VisionEngine {
         int safeTol = Math.max(15, Math.min(50, colorTolerance));
         double colorFactor = Math.max(0.0, 1.0 - (maeAll * 0.3 + maeDet * 0.7) * (30.0 / safeTol));
 
-        // 5. الاختناق البنيوي الصارم (إذا تغير النص تسقط النتيجة كلياً ولا ترفعها الخلفية)
+        // 5. النتيجة النهائية الموزونة
         double combCorr = (detCount >= 16) ? Math.min(corrColor, scoreDetail) : corrColor;
         double finalScore = combCorr * 100.0 * colorFactor;
 
-        // عقوبة إضافية صارمة إذا كان النص غير متطابق
         if (detCount >= 16 && scoreDetail < 0.85) {
             double penalty = scoreDetail / 0.85;
             finalScore *= penalty;
