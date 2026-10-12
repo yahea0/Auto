@@ -24,11 +24,13 @@ public class OcrEngine {
      * البحث عن النص داخل منطقة الفحص المحددة وإرجاع مركز الكلمة للنقر عليها
      */
     public static Point findTextInRegion(Bitmap screen, Action action) {
-        if (screen == null || action.getTargetText() == null || action.getTargetText().trim().isEmpty()) {
+        if (screen == null || action == null || action.getTargetText() == null || action.getTargetText().trim().isEmpty()) {
             return null;
         }
 
         Rect roi = VisionEngine.getEffectiveSearchRegion(action, screen.getWidth(), screen.getHeight());
+        if (roi.width() <= 0 || roi.height() <= 0) return null;
+
         Bitmap crop = Bitmap.createBitmap(screen, roi.left, roi.top, roi.width(), roi.height());
 
         try {
@@ -54,7 +56,9 @@ public class OcrEngine {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            if (!crop.isRecycled()) crop.recycle();
+            if (crop != null && !crop.isRecycled()) {
+                crop.recycle();
+            }
         }
         return null;
     }
