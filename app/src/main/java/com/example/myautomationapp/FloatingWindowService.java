@@ -12,8 +12,10 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -38,8 +40,17 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+
+import com.google.android.gms.tasks.Tasks;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+
 import java.io.File;
 import java.util.List;
+import java.util.Random;
 
 public class FloatingWindowService extends Service {
     private WindowManager windowManager;
@@ -58,6 +69,7 @@ public class FloatingWindowService extends Service {
     private boolean isHudOpen = false;
     private boolean isStopButtonVisible = false;
     private volatile boolean isMacroRunning = false;
+    private static final Random random = new Random();
     
     private BroadcastReceiver coordReceiver;
     private BroadcastReceiver cropReceiver;
@@ -702,7 +714,7 @@ public class FloatingWindowService extends Service {
                     if (screen != null) {
                         Point matchCenter = findMatchCenterForAction(screen, action);
                         if (matchCenter != null) {
-                            Point target = VisionEngine.calculateTargetClickPoint(matchCenter, 0, 0, action);
+                            Point target = calculateTargetClickPoint(matchCenter, 0, 0, action);
                             Action testAct = new Action("Click (x, y)", "", target.x, target.y);
                             testAct.setClickStyle(action.getClickStyle());
                             executeSingleActionNow(testAct);
@@ -1393,9 +1405,6 @@ public class FloatingWindowService extends Service {
         if (btnVar != null) btnVar.setOnClickListener(v -> showAiDiagnosticsDialog());
     }
 
-    /**
-     * تشغيل الماكرو بنظام المهلة الذكية والشروط التراكمية مثل Macrorify
-     */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
             Toast.makeText(this, "لا يوجد أكشنات للتشغيل!", Toast.LENGTH_SHORT).show();
@@ -1482,19 +1491,19 @@ public class FloatingWindowService extends Service {
                         if (tpl != null) {
                             Point match = VisionEngine.findActionTarget(screen, tpl, action);
                             if (match != null) {
-                                targetClickPoint = VisionEngine.calculateTargetClickPoint(match, tpl.getWidth(), tpl.getHeight(), action);
+                                targetClickPoint = calculateTargetClickPoint(match, tpl.getWidth(), tpl.getHeight(), action);
                             }
                             tpl.recycle();
                         }
                     }
                 }
-                // 2. فحص النص (OCR)
+                // 2. فحص النص (OCR المدمج)
                 else if ("Click Text".equals(action.getType()) || "Text Appear".equals(action.getConditionType())) {
-                    targetClickPoint = OcrEngine.findTextInRegion(screen, action);
+                    targetClickPoint = findTextInRegion(screen, action);
                 }
-                // 3. فحص اللون
+                // 3. فحص اللون المدمج
                 else if ("Check Color".equals(action.getType()) || "Color Match".equals(action.getConditionType())) {
-                    boolean ok = VisionEngine.checkColorMatch(screen, action.getX(), action.getY(), action.getTargetColor(), action.getColorTolerance());
+                    boolean ok = checkColorMatch(screen, action.getX(), action.getY(), action.getTargetColor(), action.getColorTolerance());
                     if (ok) targetClickPoint = new Point(action.getX(), action.getY());
                 }
 
@@ -1518,6 +1527,106 @@ public class FloatingWindowService extends Service {
             }
             try { Thread.sleep(90); } catch (InterruptedException ignored) {}
         }
+    }
+
+    /**
+     * محرك رصد النصوص المدمج (Offline On-Device ML Kit OCR)
+     */
+    private Point findTextInRegion(Bitmap screen, Action action) {
+        if (screen == null || action == null || action.getTargetText() == null || action.getTargetText().trim().isEmpty()) {
+            return null;
+        }
+
+        int sw = screen.getWidth();
+        int sh = screen.getHeight();
+        int rx = 0, ry = 0, rw = sw, rh = sh;
+
+        String mode = action.getDetectLocationMode();
+        if (mode != null && mode.toUpperCase().contains("CUSTOM")) {
+            int cx = action.getCustomRegionX();
+            int cy = action.getCustomRegionY();
+            int cw = action.getCustomRegionW();
+            int ch = action.getCustomRegionH();
+            if (cw > 10 && ch > 10) {
+                rx = Math.max(0, Math.min(cx, sw - 10));
+                ry = Math.max(0, Math.min(cy, sh - 10));
+                rw = Math.min(sw - rx, cw);
+                rh = Math.min(sh - ry, ch);
+            }
+        } else if (mode != null && mode.toUpperCase().contains("CAPTUR")) {
+            int cx = action.getCropX();
+            int cy = action.getCropY();
+            int cw = action.getCropW();
+            int ch = action.getCropH();
+            int margin = action.getSearchMarginPx() > 0 ? action.getSearchMarginPx() : 40;
+            rx = Math.max(0, cx - margin);
+            ry = Math.max(0, cy - margin);
+            rw = Math.min(sw - rx, cw + (margin * 2));
+            rh = Math.min(sh - ry, ch + (margin * 2));
+        }
+
+        if (rw <= 0 || rh <= 0) return null;
+
+        Bitmap crop = null;
+        try {
+            crop = Bitmap.createBitmap(screen, rx, ry, rw, rh);
+            InputImage image = InputImage.fromBitmap(crop, 0);
+            TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+            Text result = Tasks.await(recognizer.process(image));
+
+            String search = action.getTargetText().trim();
+            for (Text.TextBlock block : result.getTextBlocks()) {
+                for (Text.Line line : block.getLines()) {
+                    boolean match = action.isTextCaseSensitive()
+                            ? line.getText().contains(search)
+                            : line.getText().toLowerCase().contains(search.toLowerCase());
+
+                    if (match && line.getBoundingBox() != null) {
+                        Rect box = line.getBoundingBox();
+                        int clickX = rx + box.centerX() + action.getOffsetX();
+                        int clickY = ry + box.centerY() + action.getOffsetY();
+                        return new Point(clickX, clickY);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (crop != null && !crop.isRecycled()) {
+                crop.recycle();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * احتساب النقر النهائي (المركز أو عشوائي داخل الهدف)
+     */
+    private Point calculateTargetClickPoint(Point matchTopLeft, int templateW, int templateH, Action action) {
+        int centerX = matchTopLeft.x + (templateW / 2) + action.getOffsetX();
+        int centerY = matchTopLeft.y + (templateH / 2) + action.getOffsetY();
+
+        if ("Random Area".equalsIgnoreCase(action.getTargetClickMode())) {
+            int radius = Math.max(2, action.getTargetRandomRadius());
+            int rx = centerX + (random.nextInt(radius * 2 + 1) - radius);
+            int ry = centerY + (random.nextInt(radius * 2 + 1) - radius);
+            return new Point(rx, ry);
+        }
+        return new Point(centerX, centerY);
+    }
+
+    /**
+     * فحص مطابقة لون البكسل بدقة وتسامح لوني
+     */
+    private boolean checkColorMatch(Bitmap screen, int x, int y, int targetColor, int tolerance) {
+        if (screen == null || x < 0 || y < 0 || x >= screen.getWidth() || y >= screen.getHeight()) return false;
+        int pixel = screen.getPixel(x, y);
+
+        int rDiff = Math.abs(Color.red(pixel) - Color.red(targetColor));
+        int gDiff = Math.abs(Color.green(pixel) - Color.green(targetColor));
+        int bDiff = Math.abs(Color.blue(pixel) - Color.blue(targetColor));
+
+        return (rDiff <= tolerance && gDiff <= tolerance && bDiff <= tolerance);
     }
 
     private void executeSingleActionNow(Action action) {
