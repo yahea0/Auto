@@ -39,7 +39,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.util.List;
 
 public class FloatingWindowService extends Service {
@@ -148,6 +147,9 @@ public class FloatingWindowService extends Service {
                 action.setSimilarity(70);
                 action.setCropBounds(cropX, cropY, cropW, cropH);
 
+                DisplayMetrics dm = getResources().getDisplayMetrics();
+                action.setBaseResolution(dm.widthPixels, dm.heightPixels);
+
                 GlobalData.actionList.add(action);
                 updateHudActionCards();
                 openHudBar();
@@ -175,6 +177,9 @@ public class FloatingWindowService extends Service {
                 action.setCropBounds(cropX, cropY, cropW, cropH);
                 action.setX(cropX + (cropW / 2));
                 action.setY(cropY + (cropH / 2));
+
+                DisplayMetrics dm = getResources().getDisplayMetrics();
+                action.setBaseResolution(dm.widthPixels, dm.heightPixels);
 
                 GlobalData.actionList.add(action);
                 updateHudActionCards();
@@ -480,7 +485,7 @@ public class FloatingWindowService extends Service {
                 ivIcon.setImageResource(android.R.drawable.ic_menu_gallery);
                 String offsetTag = "[" + (action.getOffsetX() >= 0 ? action.getOffsetX() + "+" : action.getOffsetX()) + "/" + (action.getOffsetY() >= 0 ? action.getOffsetY() + "+" : action.getOffsetY()) + "]";
                 tvTitle.setText("Click [" + action.getImageName() + "] " + offsetTag);
-                tvSubtitle.setText("[X1] [Delay " + action.getDelayBeforeMs() + "ms/" + action.getDelayAfterMs() + "ms]");
+                tvSubtitle.setText("[" + action.getTargetClickMode() + "] [Delay " + action.getDelayBeforeMs() + "ms/" + action.getDelayAfterMs() + "ms] [Wait " + action.getTimeoutSeconds() + "s]");
 
                 branchLayout.setVisibility(View.VISIBLE);
                 TextView tvCondTitle = card.findViewById(R.id.tvConditionTitle);
@@ -505,6 +510,20 @@ public class FloatingWindowService extends Service {
 
                 View mainClick = card.findViewById(R.id.layoutMainActionClick);
                 mainClick.setOnClickListener(v -> showClickImageActionMenu(action, index));
+
+            } else if ("Click Text".equals(action.getType())) {
+                ivIcon.setImageResource(android.R.drawable.ic_menu_edit);
+                tvTitle.setText("OCR: Click [" + action.getTargetText() + "]");
+                tvSubtitle.setText("[Delay " + action.getDelayBeforeMs() + "ms/" + action.getDelayAfterMs() + "ms] [Wait " + action.getTimeoutSeconds() + "s]");
+
+                branchLayout.setVisibility(View.VISIBLE);
+                TextView tvCondTitle = card.findViewById(R.id.tvConditionTitle);
+                tvCondTitle.setText("Text Region [" + action.getTargetText() + "]");
+                TextView tvCondSub = card.findViewById(R.id.tvConditionSubtitle);
+                tvCondSub.setText(getDisplayLocationLabel(action));
+
+                View mainClick = card.findViewById(R.id.layoutMainActionClick);
+                mainClick.setOnClickListener(v -> showMacrorifyActionMenu(action, index));
 
             } else {
                 ivIcon.setImageResource(android.R.drawable.ic_menu_compass);
@@ -552,11 +571,11 @@ public class FloatingWindowService extends Service {
         if (mode == null) return "[Captured Location]";
         String m = mode.toUpperCase();
         if (m.contains("CUSTOM")) {
-            return "[Custom Region]";
+            return "[Custom Region: " + action.getCustomRegionW() + "x" + action.getCustomRegionH() + "]";
         } else if (m.contains("FULL")) {
             return "[Full Screen]";
         }
-        return "[Captured Location]";
+        return "[Captured Margin: ±" + action.getSearchMarginPx() + "px]";
     }
 
     private void showDetectLocationDialog(Action action) {
@@ -581,7 +600,7 @@ public class FloatingWindowService extends Service {
         String currentMode = action.getDetectLocationMode();
         setDetectLocationRadio(rbCaptured, rbCustom, rbFullScreen, currentMode);
 
-        tvCapturedDetails.setText("[" + action.getCropX() + ", " + action.getCropY() + ", " + action.getCropW() + ", " + action.getCropH() + "]");
+        tvCapturedDetails.setText("Captured [" + action.getCropX() + ", " + action.getCropY() + "] Margin: ±" + action.getSearchMarginPx() + "px");
         if (action.getCustomRegionW() > 0) {
             tvCustomDetails.setText(action.getCustomRegionX() + ", " + action.getCustomRegionY() + ", " + action.getCustomRegionW() + ", " + action.getCustomRegionH());
         }
@@ -683,12 +702,11 @@ public class FloatingWindowService extends Service {
                     if (screen != null) {
                         Point matchCenter = findMatchCenterForAction(screen, action);
                         if (matchCenter != null) {
-                            int clickTargetX = matchCenter.x + action.getOffsetX();
-                            int clickTargetY = matchCenter.y + action.getOffsetY();
-                            Action testAct = new Action("Click (x, y)", "", clickTargetX, clickTargetY);
+                            Point target = VisionEngine.calculateTargetClickPoint(matchCenter, 0, 0, action);
+                            Action testAct = new Action("Click (x, y)", "", target.x, target.y);
                             testAct.setClickStyle(action.getClickStyle());
                             executeSingleActionNow(testAct);
-                            Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر في مركزه فوراً!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(FloatingWindowService.this, "تم رصد الهدف والنقر فيه فوراً!", Toast.LENGTH_SHORT).show();
                         } else {
                             Toast.makeText(FloatingWindowService.this, "الهدف غير موجود على الشاشة وفق النسبة المحددة!", Toast.LENGTH_SHORT).show();
                         }
@@ -898,7 +916,6 @@ public class FloatingWindowService extends Service {
 
         final File templateFile = new File(item.getImagePath());
         final Bitmap masterBmp = BitmapFactory.decodeFile(templateFile.getAbsolutePath());
-        final int[] trimOffsets = {0, 0};
 
         if (masterBmp != null) {
             ivLivePreview.setImageBitmap(masterBmp);
@@ -988,9 +1005,6 @@ public class FloatingWindowService extends Service {
         dialog.show();
     }
 
-    /**
-     * إيجاد موضع الهدف الحقيقي الفوري بدون أي تأخير
-     */
     private Point findMatchCenterForAction(Bitmap screen, Action action) {
         if (screen == null || action == null) return null;
 
@@ -1005,23 +1019,6 @@ public class FloatingWindowService extends Service {
             tBmp.recycle();
 
             if (found != null) {
-                // التحقق من العلامة المرجعية إذا كانت نشطة
-                if (item.hasAnchor() && item.getAnchorImagePath() != null) {
-                    Bitmap aBmp = BitmapFactory.decodeFile(item.getAnchorImagePath());
-                    if (aBmp != null) {
-                        int expAnchorX = found.x + item.getAnchorRelativeX();
-                        int expAnchorY = found.y + item.getAnchorRelativeY();
-                        Point anchorFound = VisionEngine.scanAndFindTemplate(
-                                screen, aBmp,
-                                Math.max(0, expAnchorX - 25), Math.max(0, expAnchorY - 25),
-                                aBmp.getWidth() + 50, aBmp.getHeight() + 50,
-                                expAnchorX, expAnchorY,
-                                item.getAnchorSimilarity(), item.getAnchorTolerance(), false
-                        );
-                        aBmp.recycle();
-                        if (anchorFound == null) continue;
-                    }
-                }
                 return new Point(found.x + (tw / 2), found.y + (th / 2));
             }
         }
@@ -1031,7 +1028,7 @@ public class FloatingWindowService extends Service {
     private void showEditOffsetDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("Edit Offset");
+        builder.setTitle("Edit Offset & Random Target");
 
         LinearLayout layout = new LinearLayout(themedContext);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -1303,11 +1300,17 @@ public class FloatingWindowService extends Service {
     private void showClickStyleDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("Click Style");
-        String[] styles = {"Single Click", "Double Click", "Triple Click", "Long Click"};
+        builder.setTitle("Click Style & Strategy");
+        String[] styles = {"Single Click", "Double Click", "Triple Click", "Long Click", "Target: Random Area", "Target: Center"};
 
         builder.setItems(styles, (d, which) -> {
-            action.setClickStyle(styles[which]);
+            if (which < 4) {
+                action.setClickStyle(styles[which]);
+            } else if (which == 4) {
+                action.setTargetClickMode("Random Area");
+            } else {
+                action.setTargetClickMode("Center");
+            }
             updateHudActionCards();
         });
 
@@ -1321,7 +1324,7 @@ public class FloatingWindowService extends Service {
     private void showEditDelayDialog(Action action) {
         ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
         AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
-        builder.setTitle("Edit Delay");
+        builder.setTitle("Edit Delay & Timeout");
 
         LinearLayout layout = new LinearLayout(themedContext);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -1342,15 +1345,26 @@ public class FloatingWindowService extends Service {
         etAfter.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         etAfter.setText(String.valueOf(action.getDelayAfterMs()));
 
+        TextView tvTimeout = new TextView(themedContext);
+        tvTimeout.setText("Condition Timeout (Seconds):");
+        tvTimeout.setTextColor(android.graphics.Color.WHITE);
+        tvTimeout.setPadding(0, 16, 0, 0);
+        final EditText etTimeout = new EditText(themedContext);
+        etTimeout.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etTimeout.setText(String.valueOf(action.getTimeoutSeconds()));
+
         layout.addView(tvBefore); layout.addView(etBefore);
         layout.addView(tvAfter); layout.addView(etAfter);
+        layout.addView(tvTimeout); layout.addView(etTimeout);
         builder.setView(layout);
 
         builder.setPositiveButton("حفظ", (dialog, which) -> {
             String bVal = etBefore.getText().toString();
             String aVal = etAfter.getText().toString();
+            String tVal = etTimeout.getText().toString();
             action.setDelayBeforeMs(bVal.isEmpty() ? 0 : Integer.parseInt(bVal));
             action.setDelayAfterMs(aVal.isEmpty() ? 500 : Integer.parseInt(aVal));
+            action.setTimeoutSeconds(tVal.isEmpty() ? 5 : Integer.parseInt(tVal));
             updateHudActionCards();
         });
         builder.setNegativeButton("إلغاء", null);
@@ -1380,7 +1394,7 @@ public class FloatingWindowService extends Service {
     }
 
     /**
-     * تشغيل الماكرو الفوري دون أي بطء أو تجميد
+     * تشغيل الماكرو بنظام المهلة الذكية والشروط التراكمية مثل Macrorify
      */
     private void startMacroLoopExecution() {
         if (GlobalData.actionList.isEmpty()) {
@@ -1400,7 +1414,7 @@ public class FloatingWindowService extends Service {
         showStopButtonOverlay();
 
         isMacroRunning = true;
-        Toast.makeText(this, "بدء تشغيل الماكرو فائق السرعة...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "بدء تشغيل ماكرو Macrorify الذكي...", Toast.LENGTH_SHORT).show();
 
         new Thread(() -> {
             try { Thread.sleep(60); } catch (InterruptedException ignored) {}
@@ -1420,42 +1434,15 @@ public class FloatingWindowService extends Service {
                     if (AutoAccessibilityService.instance != null) {
                         String type = action.getType();
 
-                        // 1. أكشن Click Image
-                        if ("Click Image".equals(type)) {
-                            Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-                            if (screen != null) {
-                                Point matchCenter = findMatchCenterForAction(screen, action);
-                                if (matchCenter != null) {
-                                    int clickTargetX = matchCenter.x + action.getOffsetX();
-                                    int clickTargetY = matchCenter.y + action.getOffsetY();
-                                    Action clickAct = new Action("Click (x, y)", "", clickTargetX, clickTargetY);
-                                    clickAct.setClickStyle(action.getClickStyle());
-                                    executeSingleActionNow(clickAct);
-                                }
-                                screen.recycle();
-                            }
-                        } 
-                        // 2. أكشن Click (x, y) مع شرط الصورة
-                        else if ("Click (x, y)".equals(type)) {
-                            if (action.hasCondition() && "Image Appear".equals(action.getConditionType())) {
-                                boolean conditionMet = false;
-                                Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
-                                if (screen != null) {
-                                    Point matchCenter = findMatchCenterForAction(screen, action);
-                                    conditionMet = (matchCenter != null);
-                                    if (action.isNotAppear()) conditionMet = !conditionMet;
-                                    screen.recycle();
-                                }
-                                if (!conditionMet) continue;
-                            }
-
+                        if ("Click Image".equals(type) || action.hasCondition() || "Click Text".equals(type) || "Check Color".equals(type)) {
+                            executeActionWithConditionLoop(action);
+                        } else if ("Click (x, y)".equals(type)) {
                             int targetX = action.getX() + action.getOffsetX();
                             int targetY = action.getY() + action.getOffsetY();
                             Action offsetAct = action.clone();
                             offsetAct.setX(targetX);
                             offsetAct.setY(targetY);
                             executeSingleActionNow(offsetAct);
-
                         } else if ("Swipe".equals(type)) {
                             AutoAccessibilityService.instance.swipe(500, 1200, 500, 400, 400);
                         } else if ("Press Back".equals(type)) {
@@ -1476,6 +1463,61 @@ public class FloatingWindowService extends Service {
                 }
             }
         }).start();
+    }
+
+    private void executeActionWithConditionLoop(Action action) {
+        long startTime = System.currentTimeMillis();
+        long maxWaitMs = Math.max(1, action.getTimeoutSeconds()) * 1000L;
+
+        while (isMacroRunning && (System.currentTimeMillis() - startTime <= maxWaitMs)) {
+            Bitmap screen = ScreenCaptureManager.getInstance().captureScreen();
+            if (screen != null) {
+                Point targetClickPoint = null;
+
+                // 1. فحص الصورة
+                if ("Click Image".equals(action.getType()) || "Image Appear".equals(action.getConditionType())) {
+                    List<TemplateItem> pool = action.getTemplatePool();
+                    if (!pool.isEmpty()) {
+                        Bitmap tpl = BitmapFactory.decodeFile(pool.get(0).getImagePath());
+                        if (tpl != null) {
+                            Point match = VisionEngine.findActionTarget(screen, tpl, action);
+                            if (match != null) {
+                                targetClickPoint = VisionEngine.calculateTargetClickPoint(match, tpl.getWidth(), tpl.getHeight(), action);
+                            }
+                            tpl.recycle();
+                        }
+                    }
+                }
+                // 2. فحص النص (OCR)
+                else if ("Click Text".equals(action.getType()) || "Text Appear".equals(action.getConditionType())) {
+                    targetClickPoint = OcrEngine.findTextInRegion(screen, action);
+                }
+                // 3. فحص اللون
+                else if ("Check Color".equals(action.getType()) || "Color Match".equals(action.getConditionType())) {
+                    boolean ok = VisionEngine.checkColorMatch(screen, action.getX(), action.getY(), action.getTargetColor(), action.getColorTolerance());
+                    if (ok) targetClickPoint = new Point(action.getX(), action.getY());
+                }
+
+                screen.recycle();
+
+                boolean conditionMet = (targetClickPoint != null);
+                if (action.isNotAppear()) conditionMet = !conditionMet;
+
+                if (conditionMet) {
+                    if ("Click Image".equals(action.getType()) || "Click Text".equals(action.getType())) {
+                        if (targetClickPoint != null) {
+                            Action clickAct = new Action("Click (x, y)", "", targetClickPoint.x, targetClickPoint.y);
+                            clickAct.setClickStyle(action.getClickStyle());
+                            executeSingleActionNow(clickAct);
+                        }
+                    } else if ("Click (x, y)".equals(action.getType())) {
+                        executeSingleActionNow(action);
+                    }
+                    return;
+                }
+            }
+            try { Thread.sleep(90); } catch (InterruptedException ignored) {}
+        }
     }
 
     private void executeSingleActionNow(Action action) {
@@ -1515,7 +1557,45 @@ public class FloatingWindowService extends Service {
             showImageSourcePicker(null, false);
         });
 
+        dialogView.findViewById(R.id.btnClickText).setOnClickListener(v -> {
+            dialog.dismiss();
+            showAddOcrActionDialog();
+        });
+
         dialog.show();
+    }
+
+    private void showAddOcrActionDialog() {
+        ContextThemeWrapper themedContext = new ContextThemeWrapper(this, R.style.Theme_MyAutomationApp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(themedContext);
+        builder.setTitle("إضافة نقر نصي (OCR Text Detection)");
+
+        final EditText etText = new EditText(themedContext);
+        etText.setHint("أدخل الكلمة المراد رصدها والنقر عليها...");
+        etText.setTextColor(android.graphics.Color.WHITE);
+        builder.setView(etText);
+
+        builder.setPositiveButton("إضافة", (d, w) -> {
+            String word = etText.getText().toString().trim();
+            if (!word.isEmpty()) {
+                Action ocrAction = new Action("Click Text", "OCR: [" + word + "]");
+                ocrAction.setTargetText(word);
+                ocrAction.setDetectLocationMode("FULL_SCREEN");
+                DisplayMetrics dm = getResources().getDisplayMetrics();
+                ocrAction.setBaseResolution(dm.widthPixels, dm.heightPixels);
+                GlobalData.actionList.add(ocrAction);
+                updateHudActionCards();
+                openHudBar();
+                Toast.makeText(this, "تمت إضافة أمر رصد النص: " + word, Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton("إلغاء", null);
+
+        AlertDialog d = builder.create();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            d.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        }
+        d.show();
     }
 
     private void createNotificationChannel() {
@@ -1531,7 +1611,7 @@ public class FloatingWindowService extends Service {
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Auto Engine")
-                .setContentText("محرك الأتمتة السريع نشط")
+                .setContentText("محرك الأتمتة Macrorify نشط")
                 .setSmallIcon(android.R.drawable.ic_menu_compass)
                 .build();
     }
